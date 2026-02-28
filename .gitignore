@@ -1,0 +1,67 @@
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.local
+.env.development
+.env.production
+
+# =========================
+# Python
+# =========================
+venv/
+__pycache__/
+*.pyc
+
+# =========================
+# Video / Media Files
+# =========================
+storage/
+videos/
+clips/
+subtitles/
+downloads/
+*.mp4
+*.webm
+*.mkv
+*.srt
+*.vtt
+*.avi
+*.mov
+
+# =========================
+# Build folders
+# =========================
+dist/
+build/
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+.venv
+
+# =========================
+# Test and Documentation Files (Development Only)
+# =========================
+TEST-*.html
+*-STATUS*.md
+*-TROUBLESHOOTING.md
+test_*.py
