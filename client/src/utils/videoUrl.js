@@ -1,22 +1,31 @@
 /**
- * Construct proper video URL from database file_path
+ * Construct proper video URL from database file_path or cloud_url
+ * Priority: cloud_url > file_path
  * Handles multiple formats:
+ * - Cloud URL: https://res.cloudinary.com/...
  * - Full URL: http://localhost:5001/video/file.mp4
  * - Relative path: downloads/file.mp4 or downloads\file.mp4 (Windows)
  * - Just filename: file.mp4
  */
-export function getVideoUrl(filePath) {
+export function getVideoUrl(filePath, cloudUrl = null) {
+  // Priority 1: Use cloud URL if available
+  if (cloudUrl && (cloudUrl.startsWith('http://') || cloudUrl.startsWith('https://'))) {
+    console.log('☁️  Using Cloudinary URL:', cloudUrl);
+    return cloudUrl;
+  }
+
   if (!filePath) {
     console.warn('⚠️  No file path provided');
     return '';
   }
 
-  // If already a full URL, return as is
+  // Priority 2: If already a full URL, return as is
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     console.log('✅ Using full URL:', filePath);
     return filePath;
   }
 
+  // Priority 3: Construct local server URL
   // Normalize path separators (Windows backslashes to forward slashes)
   let filename = filePath.replace(/\\/g, '/');
   

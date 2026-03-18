@@ -11,6 +11,8 @@ class Clip {
       duration,
       filePath,
       thumbnailPath,
+      cloudUrl,
+      cloudinaryPublicId,
       emotion,
       viralScore,
       transcript,
@@ -20,10 +22,10 @@ class Clip {
     const query = `
       INSERT INTO clips (
         video_id, user_id, title, start_time, end_time, duration,
-        file_path, thumbnail_path, emotion, viral_score, transcript,
-        metadata, status
+        file_path, thumbnail_path, cloud_url, cloudinary_public_id,
+        emotion, viral_score, transcript, metadata, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `;
 
@@ -36,6 +38,8 @@ class Clip {
       duration,
       filePath,
       thumbnailPath || null,
+      cloudUrl || null,
+      cloudinaryPublicId || null,
       emotion || null,
       viralScore || null,
       transcript || null,

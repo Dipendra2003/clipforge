@@ -91,14 +91,18 @@ CREATE TABLE videos (
     error_message TEXT, -- Error details if processing failed
     has_subtitles BOOLEAN DEFAULT false,
     subtitle_path TEXT, -- Path to subtitle file (.vtt)
+    cloud_url TEXT, -- Cloudinary URL for video file (if uploaded to cloud)
+    thumbnail_cloud_url TEXT, -- Cloudinary URL for thumbnail (if uploaded to cloud)
     metadata JSONB, -- Additional video metadata (resolution, codec, etc.)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE videos IS 'Stores uploaded and processed videos';
+COMMENT ON TABLE videos IS 'Stores uploaded and processed videos. Supports both local and cloud storage.';
 COMMENT ON COLUMN videos.source_type IS 'Video source: upload (user uploaded) or youtube (downloaded from YouTube)';
 COMMENT ON COLUMN videos.status IS 'Processing status: pending, processing, completed, or failed';
+COMMENT ON COLUMN videos.cloud_url IS 'Cloudinary URL for video file (if uploaded to cloud)';
+COMMENT ON COLUMN videos.thumbnail_cloud_url IS 'Cloudinary URL for thumbnail (if uploaded to cloud)';
 COMMENT ON COLUMN videos.metadata IS 'JSON object containing additional video information';
 
 -- Clips table - stores AI-generated viral clips
@@ -112,8 +116,10 @@ CREATE TABLE clips (
     duration INTEGER NOT NULL, -- Clip duration in seconds
     file_path TEXT NOT NULL, -- Path to clip file on server
     thumbnail_path TEXT, -- Path to clip thumbnail
+    cloud_url TEXT, -- Cloudinary URL for clip file (if uploaded to cloud)
+    cloudinary_public_id TEXT, -- Cloudinary public ID for file management
     emotion VARCHAR(50), -- AI-detected emotion (joy, excitement, surprise, humor, etc.)
-    viral_score DECIMAL(3,2), -- AI viral potential score (0.00 to 1.00)
+    viral_score DECIMAL(5,2) CHECK (viral_score >= 0 AND viral_score <= 100), -- AI viral potential score (0 to 100)
     transcript TEXT, -- Subtitle text for this clip segment
     status VARCHAR(20) NOT NULL DEFAULT 'completed' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'posted')),
     metadata JSONB, -- AI analysis results and additional clip data
@@ -121,9 +127,11 @@ CREATE TABLE clips (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE clips IS 'Stores AI-generated viral clips from videos';
+COMMENT ON TABLE clips IS 'Stores AI-generated viral clips from videos. Supports both local and cloud storage.';
 COMMENT ON COLUMN clips.emotion IS 'AI-detected emotional tone of the clip';
-COMMENT ON COLUMN clips.viral_score IS 'AI-predicted viral potential score (0.00 = low, 1.00 = high)';
+COMMENT ON COLUMN clips.viral_score IS 'AI-predicted viral potential score (0 = low, 100 = high)';
+COMMENT ON COLUMN clips.cloud_url IS 'Cloudinary URL for clip file (if uploaded to cloud)';
+COMMENT ON COLUMN clips.cloudinary_public_id IS 'Cloudinary public ID for file management';
 COMMENT ON COLUMN clips.status IS 'Clip status: pending, processing, completed, failed, or posted';
 COMMENT ON COLUMN clips.metadata IS 'JSON object containing AI analysis results and clip metadata';
 
@@ -168,7 +176,7 @@ CREATE TABLE published_posts (
     caption TEXT, -- Caption/description text posted with the video
     status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'uploading', 'published', 'failed', 'scheduled', 'cancelled')),
     error_message TEXT,
-    scheduled_for TIMESTAMP, -- UTC timestamp when the post should be published
+    scheduled_for TIMESTAMP, -- IST timestamp when the post should be published
     is_scheduled BOOLEAN DEFAULT FALSE, -- Whether this post is scheduled for future publishing
     metadata JSONB, -- Additional platform-specific data
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -182,7 +190,7 @@ COMMENT ON COLUMN published_posts.platform_url IS 'Public URL to view the posted
 COMMENT ON COLUMN published_posts.title IS 'Custom title used when posting (may differ from clip title)';
 COMMENT ON COLUMN published_posts.caption IS 'Caption/description text posted with the video';
 COMMENT ON COLUMN published_posts.status IS 'Upload status: pending, uploading, published, failed, scheduled, or cancelled';
-COMMENT ON COLUMN published_posts.scheduled_for IS 'UTC timestamp when the post should be published (NULL for immediate posts)';
+COMMENT ON COLUMN published_posts.scheduled_for IS 'IST timestamp when the post should be published (NULL for immediate posts)';
 COMMENT ON COLUMN published_posts.is_scheduled IS 'Whether this post is scheduled for future publishing';
 
 -- ============================================
@@ -211,6 +219,8 @@ CREATE INDEX idx_clips_status ON clips(status);
 CREATE INDEX idx_clips_viral_score ON clips(viral_score DESC);
 CREATE INDEX idx_clips_created_at ON clips(created_at DESC);
 CREATE INDEX idx_clips_emotion ON clips(emotion);
+CREATE INDEX idx_clips_cloud_url ON clips(cloud_url) WHERE cloud_url IS NOT NULL;
+CREATE INDEX idx_videos_cloud_url ON videos(cloud_url) WHERE cloud_url IS NOT NULL;
 
 -- Platform integration indexes
 CREATE INDEX idx_platform_connections_user_id ON platform_connections(user_id);

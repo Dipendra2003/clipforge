@@ -5,7 +5,7 @@ class Session {
   static async create(userId, refreshToken, device = 'unknown') {
     const query = `
       INSERT INTO sessions (user_id, refresh_token, device, created_at)
-      VALUES ($1, $2, $3, NOW())
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     
@@ -41,7 +41,7 @@ class Session {
 
   // Clean up expired sessions (older than 30 days)
   static async cleanupExpired() {
-    const query = `DELETE FROM sessions WHERE created_at < NOW() - INTERVAL '30 days'`;
+    const query = `DELETE FROM sessions WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days'`;
     await pool.query(query);
   }
 }

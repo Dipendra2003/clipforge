@@ -10,6 +10,7 @@ class Video {
       sourceUrl,
       filePath,
       thumbnailPath,
+      thumbnailCloudUrl,
       duration,
       fileSize,
       hasSubtitles,
@@ -20,10 +21,10 @@ class Video {
     const query = `
       INSERT INTO videos (
         user_id, title, description, source_type, source_url,
-        file_path, thumbnail_path, duration, file_size,
+        file_path, thumbnail_path, thumbnail_cloud_url, duration, file_size,
         has_subtitles, subtitle_path, metadata, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -35,6 +36,7 @@ class Video {
       sourceUrl || null,
       filePath,
       thumbnailPath || null,
+      thumbnailCloudUrl || null,
       duration || 0,
       fileSize || 0,
       hasSubtitles || false,

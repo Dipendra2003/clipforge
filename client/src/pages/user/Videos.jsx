@@ -149,9 +149,9 @@ function Videos() {
           {videos.map((video) => (
             <div key={video.id} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden">
               <div className="aspect-video bg-gray-900 relative">
-                {video.thumbnail_path ? (
+                {(video.thumbnail_cloud_url || video.thumbnail_path) ? (
                   <img 
-                    src={getVideoUrl(video.thumbnail_path)} 
+                    src={video.thumbnail_cloud_url || getVideoUrl(video.thumbnail_path)} 
                     alt={video.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -160,7 +160,7 @@ function Videos() {
                     }}
                   />
                 ) : null}
-                <div className="fallback-icon flex items-center justify-center h-full text-white text-4xl" style={{ display: video.thumbnail_path ? 'none' : 'flex' }}>
+                <div className="fallback-icon flex items-center justify-center h-full text-white text-4xl" style={{ display: (video.thumbnail_cloud_url || video.thumbnail_path) ? 'none' : 'flex' }}>
                   🎬
                 </div>
                 <div className="absolute top-2 right-2">
@@ -217,7 +217,7 @@ function Videos() {
                     
                     <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                       <span>{formatFileSize(video.file_size)}</span>
-                      <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                      <span>{new Date(video.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                     </div>
 
                     {video.has_subtitles && (

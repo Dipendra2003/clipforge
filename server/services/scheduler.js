@@ -56,40 +56,85 @@ async function refreshYouTubeToken(connection) {
 
 // Process all scheduled posts that are due
 async function processScheduledPosts() {
-  try {
-    const scheduledPosts = await PublishedPost.findScheduledPosts();
-    
-    if (scheduledPosts.length === 0) {
+  let retries = 3;
+  let lastError = null;
+  
+  while (retries > 0) {
+    try {
+      const scheduledPosts = await PublishedPost.findScheduledPosts();
+      
+      // Only log when there are posts to process
+      if (scheduledPosts.length === 0) {
+        return;
+      }
+
+      logger.info(`Found ${scheduledPosts.length} scheduled post(s) to process`);
+      
+      // Log each post's scheduled time
+      scheduledPosts.forEach(post => {
+        logger.info('Scheduled post details', {
+          postId: post.id,
+          scheduledFor: post.scheduled_for,
+          scheduledForIST: new Date(post.scheduled_for).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+        });
+      });
+
+      // Process each scheduled post
+      for (const post of scheduledPosts) {
+        await publishScheduledVideo(post);
+      }
+      
+      // Success - break out of retry loop
       return;
+
+    } catch (error) {
+      lastError = error;
+      retries--;
+      
+      // Check if it's a connection error
+      const isConnectionError = error.message.includes('ETIMEDOUT') || 
+                               error.message.includes('ENOTFOUND') ||
+                               error.message.includes('ECONNRESET') ||
+                               error.message.includes('Connection terminated');
+      
+      if (isConnectionError && retries > 0) {
+        logger.warn(`Database connection error, retrying... (${retries} attempts left)`, {
+          error: error.message
+        });
+        // Wait 2 seconds before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        // Not a connection error or out of retries
+        logger.error('Scheduler error', { 
+          error: error.message,
+          stack: error.stack
+        });
+        break;
+      }
     }
-
-    logger.info(`Found ${scheduledPosts.length} scheduled post(s) to process`);
-
-    // Process each scheduled post
-    for (const post of scheduledPosts) {
-      await publishScheduledVideo(post);
-    }
-
-  } catch (error) {
-    logger.error('Scheduler error', { 
-      error: error.message,
-      stack: error.stack
+  }
+  
+  // If we exhausted all retries
+  if (retries === 0 && lastError) {
+    logger.error('Scheduler failed after all retries', {
+      error: lastError.message
     });
   }
 }
 
-// Publish a scheduled video (change from private to public)
+// Publish a scheduled video (upload at scheduled time)
 async function publishScheduledVideo(post) {
   try {
-    logger.info('Publishing scheduled video', { 
+    logger.info('Processing scheduled video upload', { 
       postId: post.id,
       userId: post.user_id,
-      videoId: post.platform_video_id,
       scheduledFor: post.scheduled_for
     });
 
-    if (!post.platform_video_id) {
-      throw new Error('No video ID found for scheduled post');
+    // Get clip from database
+    const clip = await Clip.findById(post.clip_id);
+    if (!clip) {
+      throw new Error('Clip not found');
     }
 
     // Get YouTube connection
@@ -106,6 +151,13 @@ async function publishScheduledVideo(post) {
       const newAccessToken = await refreshYouTubeToken(connection);
       connection.access_token = newAccessToken;
     }
+
+    // Update status to uploading
+    await PublishedPost.updateStatus(post.id, 'uploading');
+
+    // Ensure clip file exists (download from Cloudinary if needed)
+    const clipPath = await ensureClipExists(clip);
+    logger.info('Clip ready for scheduled upload', { clipPath });
 
     // Initialize YouTube API
     const oauth2Client = new google.auth.OAuth2(
@@ -126,22 +178,45 @@ async function publishScheduledVideo(post) {
 
     // Get privacy setting from metadata (default to public)
     const privacy = post.metadata?.privacy || 'public';
+    const videoTitle = post.title || 'Untitled';
+    const videoDescription = post.caption || clip.transcript || 'Created with ClipForge AI';
 
-    // Update video status to public
-    await youtube.videos.update({
-      part: ['status'],
+    // Upload video to YouTube
+    const fileSize = fs.statSync(clipPath).size;
+    
+    logger.info('Uploading scheduled video to YouTube', { 
+      title: videoTitle,
+      fileSize,
+      privacy,
+      channelId: connection.platform_user_id
+    });
+
+    const videoResponse = await youtube.videos.insert({
+      part: ['snippet', 'status'],
       requestBody: {
-        id: post.platform_video_id,
+        snippet: {
+          title: videoTitle,
+          description: videoDescription,
+          categoryId: '22', // People & Blogs
+          tags: ['shorts', 'short', 'viral', 'clipforge']
+        },
         status: {
           privacyStatus: privacy,
           selfDeclaredMadeForKids: false
         }
+      },
+      media: {
+        body: fs.createReadStream(clipPath)
       }
     });
 
-    logger.info('Scheduled video published successfully', { 
+    const videoId = videoResponse.data.id;
+    const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
+
+    logger.info('Scheduled video uploaded successfully', { 
       postId: post.id,
-      videoId: post.platform_video_id,
+      videoId,
+      videoUrl,
       privacy
     });
 
@@ -150,8 +225,8 @@ async function publishScheduledVideo(post) {
       post.id,
       'published',
       null,
-      post.platform_video_id,
-      post.platform_url
+      videoId,
+      videoUrl
     );
 
     // Update clip status to 'posted'
@@ -159,14 +234,14 @@ async function publishScheduledVideo(post) {
 
     logger.authEvent('SCHEDULED_POST_PUBLISHED', post.user_id, { 
       clipId: post.clip_id, 
-      videoId: post.platform_video_id,
+      videoId,
       postId: post.id 
     });
 
-    return { success: true, videoId: post.platform_video_id };
+    return { success: true, videoId, videoUrl };
 
   } catch (error) {
-    logger.error('Scheduled video publish error', { 
+    logger.error('Scheduled video upload error', { 
       postId: post.id,
       error: error.message,
       stack: error.stack
@@ -176,18 +251,93 @@ async function publishScheduledVideo(post) {
     await PublishedPost.updateStatus(
       post.id,
       'failed',
-      `Failed to publish: ${error.message}`
+      `Failed to upload: ${error.message}`
     );
 
     return { success: false, error: error.message };
   }
 }
 
+// Helper function to download clip from Cloudinary if needed
+async function ensureClipExists(clip) {
+  const axios = (await import('axios')).default;
+  
+  // Prioritize cloud_url if available
+  let clipUrl = clip.cloud_url || clip.file_path;
+  
+  // Check if it's a Cloudinary URL
+  if (clipUrl && (clipUrl.startsWith('http://') || clipUrl.startsWith('https://'))) {
+    // Extract filename from URL
+    const urlParts = clipUrl.split('/');
+    const filename = urlParts[urlParts.length - 1];
+    const localPath = path.join(__dirname, '..', 'downloads', 'clips', filename);
+    
+    // Check if file already exists locally
+    if (fs.existsSync(localPath)) {
+      logger.info('Clip already exists locally', { localPath });
+      return localPath;
+    }
+    
+    // Download from Cloudinary
+    logger.info('Downloading clip from Cloudinary for scheduled upload', { url: clipUrl, localPath });
+    
+    // Ensure directory exists
+    const dir = path.dirname(localPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: clipUrl,
+        responseType: 'stream'
+      });
+      
+      const writer = fs.createWriteStream(localPath);
+      response.data.pipe(writer);
+      
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+      
+      logger.info('Clip downloaded successfully', { localPath });
+      return localPath;
+    } catch (error) {
+      logger.error('Failed to download clip from Cloudinary', { 
+        error: error.message, 
+        url: clipUrl 
+      });
+      throw new Error(`Failed to download clip: ${error.message}`);
+    }
+  }
+  
+  // Handle local paths (fallback)
+  let clipPath = clip.file_path;
+  
+  // Fix duplicate downloads/ prefix issue
+  if (clipPath && clipPath.includes('downloads/downloads')) {
+    clipPath = clipPath.replace(/downloads\/downloads/g, 'downloads');
+  }
+  
+  if (clipPath && (clipPath.startsWith('downloads/') || clipPath.startsWith('downloads\\'))) {
+    clipPath = path.join(__dirname, '..', clipPath);
+  } else if (clipPath && !path.isAbsolute(clipPath)) {
+    clipPath = path.join(__dirname, '..', 'downloads', 'clips', clipPath);
+  }
+  
+  if (clipPath && fs.existsSync(clipPath)) {
+    return clipPath;
+  }
+  
+  throw new Error(`Clip file not available. No valid cloud_url or local file_path found.`);
+}
+
 // Initialize scheduler
 export function initScheduler() {
   // Run every minute
   cron.schedule('* * * * *', async () => {
-    logger.info('Running scheduled posts check...');
     await processScheduledPosts();
   });
 

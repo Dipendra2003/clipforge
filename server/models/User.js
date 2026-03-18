@@ -8,7 +8,7 @@ class User {
     
     const query = `
       INSERT INTO users (name, email, password, google_id, role, email_verified, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
       RETURNING id, name, email, role, email_verified, google_id, created_at
     `;
     

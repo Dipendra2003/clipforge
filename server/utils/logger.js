@@ -20,10 +20,21 @@ const LOG_LEVELS = {
   SECURITY: 'SECURITY'
 };
 
-// Format log message
+// Format log message with IST timestamp
 const formatLog = (level, message, metadata = {}) => {
+  const istTime = new Date().toLocaleString('en-IN', { 
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
   return JSON.stringify({
-    timestamp: new Date().toISOString(),
+    timestamp: istTime + ' IST',
     level,
     message,
     ...metadata

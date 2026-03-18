@@ -21,7 +21,7 @@ router.get('/metrics', async (req, res) => {
     const activeUsersResult = await pool.query(`
       SELECT COUNT(DISTINCT user_id) 
       FROM sessions 
-      WHERE created_at >= NOW() - INTERVAL '30 days'
+      WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
     `);
     const activeUsers = parseInt(activeUsersResult.rows[0].count);
 
@@ -60,7 +60,7 @@ router.get('/user-growth', async (req, res) => {
         DATE(created_at) as date,
         COUNT(*) as count
       FROM users
-      WHERE created_at >= NOW() - INTERVAL '30 days'
+      WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
       GROUP BY DATE(created_at)
       ORDER BY date ASC
     `);
@@ -82,7 +82,7 @@ router.get('/video-stats', async (req, res) => {
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
       FROM videos
-      WHERE created_at >= NOW() - INTERVAL '30 days'
+      WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
       GROUP BY DATE(created_at)
       ORDER BY date ASC
     `);

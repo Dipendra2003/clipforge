@@ -141,7 +141,16 @@ def download_video():
 def serve_video(filename):
     try:
         print(f"Serving video file: {filename}")
-        response = send_from_directory(DOWNLOAD_FOLDER, filename)
+        
+        # Check if it's a clip (contains "_clip_" in filename)
+        if "_clip_" in filename:
+            # Serve from clips subfolder
+            response = send_from_directory(CLIPS_FOLDER, filename)
+            print(f"✅ Serving clip from: {CLIPS_FOLDER}/{filename}")
+        else:
+            # Serve from main downloads folder (videos, thumbnails, subtitles)
+            response = send_from_directory(DOWNLOAD_FOLDER, filename)
+            print(f"✅ Serving file from: {DOWNLOAD_FOLDER}/{filename}")
 
         if filename.endswith(".vtt"):
             response.headers["Content-Type"] = "text/vtt"
@@ -159,7 +168,6 @@ def serve_video(filename):
         # Add Accept-Ranges header for video seeking
         response.headers["Accept-Ranges"] = "bytes"
         
-        print(f"✅ Successfully serving: {filename}")
         return response
     except Exception as e:
         print(f"❌ Error serving video {filename}: {e}")
@@ -300,13 +308,21 @@ def process_video():
             "videoInfo": results.get('video_info', {}),
             "detectedLanguage": results.get('detected_language', 'unknown'),
             "subtitleUrl": f"http://127.0.0.1:5001/video/{video_id}.vtt" if results.get('subtitle_path') else None,
-            "thumbnailUrl": f"http://127.0.0.1:5001/video/{video_id}_thumb.jpg" if results.get('thumbnail_path') else None,
+            "thumbnailUrl": results.get('thumbnail_cloud_url') or (f"http://127.0.0.1:5001/video/{video_id}_thumb.jpg" if results.get('thumbnail_path') else None),
+            "thumbnailCloudUrl": results.get('thumbnail_cloud_url'),
             "clips": []
         }
         
         # Add clip information
         for clip in results.get('clips', []):
             clip_filename = os.path.basename(clip['file_path'])
+            
+            # Use cloud URL if available, otherwise local URL
+            if clip.get('cloud_url'):
+                clip_url = clip['cloud_url']
+            else:
+                clip_url = f"http://127.0.0.1:5001/video/{clip_filename}"
+            
             response['clips'].append({
                 "clipNumber": clip['clip_number'],
                 "title": clip['title'],
@@ -316,8 +332,10 @@ def process_video():
                 "emotion": clip['emotion'],
                 "viralScore": clip['viral_score'],
                 "reason": clip['reason'],
-                "clipUrl": f"http://127.0.0.1:5001/video/{clip_filename}",
-                "filePath": clip['file_path']
+                "clipUrl": clip_url,
+                "cloudUrl": clip.get('cloud_url'),
+                "filePath": clip['file_path'],
+                "cloudinaryPublicId": clip.get('cloudinary_public_id')
             })
         
         print(f"✅ Processing completed: {len(response['clips'])} clips created")

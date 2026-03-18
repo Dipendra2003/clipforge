@@ -40,18 +40,28 @@ router.get('/dashboard/stats', async (req, res) => {
     // Recent activity count (last 7 days)
     const recentActivityResult = await pool.query(
       `SELECT COUNT(*) FROM (
-        SELECT created_at FROM videos WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '7 days'
+        SELECT created_at FROM videos WHERE user_id = $1 AND created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
         UNION ALL
-        SELECT created_at FROM clips WHERE user_id = $2 AND created_at >= NOW() - INTERVAL '7 days'
+        SELECT created_at FROM clips WHERE user_id = $2 AND created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
       ) as recent`,
       [userId, userId]
     );
     const recentActivityCount = parseInt(recentActivityResult.rows[0].count);
 
+    // Scheduled posts count
+    const scheduledPostsResult = await pool.query(
+      `SELECT COUNT(*) FROM published_posts 
+       WHERE user_id = $1 
+       AND status = 'scheduled' 
+       AND is_scheduled = true`,
+      [userId]
+    );
+    const scheduledPosts = parseInt(scheduledPostsResult.rows[0].count);
+
     res.json({
       totalVideos,
       totalClips,
-      scheduledPosts: 0, // Placeholder for future feature
+      scheduledPosts,
       totalViews: 0, // Placeholder for future analytics
       recentActivityCount,
       videosByStatus: statusResult.rows
@@ -69,6 +79,7 @@ router.get('/dashboard/activity', async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     // Get recent videos and clips with activity type
+    // PostgreSQL stores timestamps in IST, we need to handle them correctly
     const activityResult = await pool.query(
       `
       (
@@ -77,8 +88,9 @@ router.get('/dashboard/activity', async (req, res) => {
           v.id,
           v.title,
           v.status,
-          v.created_at,
+          v.created_at as created_at,
           v.thumbnail_path,
+          v.thumbnail_cloud_url,
           NULL as video_title,
           NULL as viral_score
         FROM videos v
@@ -91,8 +103,9 @@ router.get('/dashboard/activity', async (req, res) => {
           c.id,
           c.title,
           'completed' as status,
-          c.created_at,
+          c.created_at as created_at,
           c.thumbnail_path,
+          NULL as thumbnail_cloud_url,
           v.title as video_title,
           c.viral_score
         FROM clips c
@@ -137,10 +150,35 @@ router.get('/dashboard/activity', async (req, res) => {
         icon = '✂️';
         color = 'purple';
         
-        if (activity.viral_score && activity.viral_score >= 80) {
+        // Check viral score (stored as decimal 0.00-1.00)
+        if (activity.viral_score && activity.viral_score >= 0.80) {
           icon = '🔥';
           color = 'orange';
         }
+      }
+
+      // Handle timezone conversion properly
+      // Old records were stored in IST when timezone was set to Asia/Kolkata
+      // New records will be stored in UTC after we removed timezone setting
+      // We need to detect and handle both cases
+      
+      let timestamp;
+      const now = new Date();
+      const dbDate = activity.created_at instanceof Date 
+        ? activity.created_at 
+        : new Date(activity.created_at);
+      
+      // Calculate time difference
+      const diffHours = (now - dbDate) / (1000 * 60 * 60);
+      
+      // If difference is around 5-6 hours, it's likely an IST timestamp being read as UTC
+      // Add 5.5 hours to correct it
+      if (diffHours > 5 && diffHours < 7) {
+        const correctedDate = new Date(dbDate.getTime() + (5.5 * 60 * 60 * 1000));
+        timestamp = correctedDate.toISOString();
+      } else {
+        // For new records or if difference is reasonable, use as-is
+        timestamp = dbDate.toISOString();
       }
 
       return {
@@ -150,9 +188,18 @@ router.get('/dashboard/activity', async (req, res) => {
         description,
         icon,
         color,
-        timestamp: activity.created_at,
+        timestamp: timestamp,
         thumbnailPath: activity.thumbnail_path,
-        viralScore: activity.viral_score
+        thumbnailUrl: activity.thumbnail_cloud_url || null,
+        viralScore: activity.viral_score ? Number(activity.viral_score).toFixed(0) + '%' : null,
+        _debug: {
+          dbRawTimestamp: activity.created_at?.toString(),
+          dbDate: dbDate.toISOString(),
+          correctedTimestamp: timestamp,
+          diffHours: diffHours.toFixed(2),
+          serverNow: now.toISOString(),
+          wasAdjusted: diffHours > 5 && diffHours < 7
+        }
       };
     });
 

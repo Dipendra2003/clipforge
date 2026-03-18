@@ -12,8 +12,15 @@ router.get('/my-clips', authenticate, async (req, res) => {
     const clips = await Clip.findByUserId(req.user.id, parseInt(limit), parseInt(offset));
     const total = await Clip.countByUserId(req.user.id);
 
+    // Transform clips to use cloud URL if available and convert viral_score to number
+    const transformedClips = clips.map(clip => ({
+      ...clip,
+      viral_score: clip.viral_score ? Number(clip.viral_score) : null,
+      clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`
+    }));
+
     res.json({
-      clips,
+      clips: transformedClips,
       total,
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -30,7 +37,14 @@ router.get('/top-viral', authenticate, async (req, res) => {
     const { limit = 10 } = req.query;
     const clips = await Clip.findTopByViralScore(req.user.id, parseInt(limit));
 
-    res.json({ clips });
+    // Transform clips to use cloud URL if available and convert viral_score to number
+    const transformedClips = clips.map(clip => ({
+      ...clip,
+      viral_score: clip.viral_score ? Number(clip.viral_score) : null,
+      clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`
+    }));
+
+    res.json({ clips: transformedClips });
   } catch (error) {
     console.error('Get top clips error:', error);
     res.status(500).json({ error: 'Failed to fetch top clips' });
@@ -50,7 +64,14 @@ router.get('/:clipId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    res.json({ clip });
+    // Transform clip to use cloud URL if available and convert viral_score to number
+    const transformedClip = {
+      ...clip,
+      viral_score: clip.viral_score ? Number(clip.viral_score) : null,
+      clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`
+    };
+
+    res.json({ clip: transformedClip });
   } catch (error) {
     console.error('Get clip error:', error);
     res.status(500).json({ error: 'Failed to fetch clip' });

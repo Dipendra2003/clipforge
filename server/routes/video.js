@@ -46,11 +46,16 @@ const upload = multer({
 // Save processed video and clips from Flask
 router.post('/save-processed', async (req, res) => {
   try {
-    const { videoId, userId, videoInfo, clips, subtitleUrl, thumbnailUrl } = req.body;
+    const { videoId, userId, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
+
+    console.log('💾 Saving video with thumbnail:', {
+      thumbnailUrl,
+      thumbnailCloudUrl
+    });
 
     // Save video to database
     const video = await Video.create({
@@ -59,6 +64,7 @@ router.post('/save-processed', async (req, res) => {
       sourceType: 'youtube',
       filePath: `downloads/${videoId}.mp4`,
       thumbnailPath: thumbnailUrl ? `downloads/${videoId}_thumb.jpg` : null,
+      thumbnailCloudUrl: thumbnailCloudUrl || null,
       duration: videoInfo.duration || 0,
       fileSize: videoInfo.file_size || 0,
       hasSubtitles: !!subtitleUrl,
@@ -100,6 +106,9 @@ router.post('/save-processed', async (req, res) => {
       console.log(`💾 Saving clip to database:`, {
         title: clip.title,
         filePath: clipFilePath,
+        cloudUrl: clip.cloudUrl || clip.cloud_url || 'NOT SET',
+        viralScore: clip.viralScore,
+        viralScoreType: typeof clip.viralScore,
         startTime: clip.startTime,
         endTime: clip.endTime
       });
@@ -112,8 +121,10 @@ router.post('/save-processed', async (req, res) => {
         endTime: clip.endTime,
         duration: clip.duration,
         filePath: clipFilePath,
+        cloudUrl: clip.cloudUrl || clip.cloud_url || null,
+        cloudinaryPublicId: clip.cloudinaryPublicId || clip.cloudinary_public_id || null,
         emotion: clip.emotion,
-        viralScore: clip.viralScore,
+        viralScore: clip.viralScore || 75,  // Default to 75% if not provided
         metadata: { reason: clip.reason }
       });
       savedClips.push(savedClip);
@@ -286,9 +297,16 @@ router.get('/:videoId', authenticate, async (req, res) => {
     // Get clips for this video
     const clips = await Clip.findByVideoId(video.id);
 
+    // Transform clips to use cloud URL if available and convert viral_score to number
+    const transformedClips = clips.map(clip => ({
+      ...clip,
+      viral_score: clip.viral_score ? Number(clip.viral_score) : null,
+      clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`
+    }));
+
     res.json({
       video,
-      clips
+      clips: transformedClips
     });
   } catch (error) {
     console.error('Get video error:', error);

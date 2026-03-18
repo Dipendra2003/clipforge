@@ -163,7 +163,8 @@ function Scheduled() {
 
   const formatScheduledTime = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -413,7 +414,7 @@ function Scheduled() {
               <li>• Our scheduler checks every minute and publishes them at the exact scheduled time</li>
               <li>• This page auto-refreshes to show upload progress and publish status</li>
               <li>• You can also manually refresh using the button above</li>
-              <li>• All times are displayed in your local timezone but stored in UTC</li>
+              <li>• All times are displayed in your local timezone (IST in database)</li>
               <li>• You can cancel a scheduled post before it's published (video will be deleted)</li>
               <li>• Once published, the post will appear in your regular posts list</li>
             </ul>

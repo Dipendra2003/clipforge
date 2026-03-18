@@ -1572,13 +1572,13 @@ function Demo() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-gray-700">Viral Score</span>
                         <span className="text-sm font-bold text-purple-600">
-                          {clip.viralScore.toFixed(2)}/10
+                          {clip.viralScore.toFixed(0)}%
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-gradient-to-r from-purple-600 to-indigo-600 h-2 rounded-full transition-all"
-                          style={{ width: `${(clip.viralScore / 10) * 100}%` }}
+                          style={{ width: `${clip.viralScore}%` }}
                         ></div>
                       </div>
                     </div>

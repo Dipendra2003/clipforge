@@ -42,7 +42,7 @@ function VideoDetails() {
         setEditDescription(data.video.description || '');
       } else {
         toast.error('Failed to load video details');
-        navigate('/videos');
+        navigate('/dashboard/videos');
       }
     } catch (error) {
       console.error('Error fetching video details:', error);
@@ -92,7 +92,7 @@ function VideoDetails() {
 
       if (response.ok) {
         toast.success('Video deleted successfully!');
-        navigate('/videos');
+        navigate('/dashboard/videos');
       } else {
         toast.error('Failed to delete video');
       }
@@ -125,7 +125,7 @@ function VideoDetails() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <button 
-        onClick={() => navigate('/videos')}
+        onClick={() => navigate('/dashboard/videos')}
         className="mb-6 text-purple-600 hover:text-purple-700 flex items-center"
       >
         ← Back to Videos
@@ -257,7 +257,7 @@ function VideoDetails() {
               )}
 
               <div className="text-xs text-gray-500">
-                Created: {new Date(video.created_at).toLocaleString()}
+                Created: {new Date(video.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
               </div>
             </>
           )}
@@ -298,7 +298,7 @@ function VideoDetails() {
                 <div className="aspect-video bg-gray-900 relative">
                   <video 
                     key={clip.id}
-                    src={getVideoUrl(clip.file_path)}
+                    src={getVideoUrl(clip.file_path, clip.cloud_url)}
                     className="w-full h-full object-cover"
                     controls
                     preload="metadata"
@@ -332,7 +332,7 @@ function VideoDetails() {
                   </div>
                   {clip.viral_score && (
                     <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-1 rounded text-xs font-semibold">
-                      🔥 {(clip.viral_score * 10 * 10).toFixed(0)}%
+                      🔥 {Number(clip.viral_score).toFixed(0)}%
                     </div>
                   )}
                 </div>
@@ -351,11 +351,11 @@ function VideoDetails() {
                   </div>
                   
                   <a 
-                    href={getVideoUrl(clip.file_path)}
+                    href={getVideoUrl(clip.file_path, clip.cloud_url)}
                     download={`${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`}
                     onClick={(e) => {
                       e.preventDefault();
-                      const url = getVideoUrl(clip.file_path);
+                      const url = getVideoUrl(clip.file_path, clip.cloud_url);
                       fetch(url)
                         .then(response => response.blob())
                         .then(blob => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
@@ -6,7 +6,7 @@ import GoogleSignInButton from '../../components/GoogleSignInButton';
 
 function Signup() {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -14,6 +14,18 @@ function Signup() {
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      toast.info('You are already logged in!');
+      if (user.role === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   const handleChange = (e) => {
     setFormData({

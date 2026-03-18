@@ -340,7 +340,11 @@ function SimpleBarChart({ data, color }) {
 // Helper functions
 function formatDate(dateString) {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-IN', { 
+    timeZone: 'Asia/Kolkata',
+    month: 'short', 
+    day: 'numeric' 
+  });
 }
 
 function calculateSuccessRate(videoStats) {

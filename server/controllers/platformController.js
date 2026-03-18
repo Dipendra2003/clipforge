@@ -5,7 +5,7 @@ import logger from '../utils/logger.js';
 // YouTube OAuth configuration
 const YOUTUBE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const YOUTUBE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const YOUTUBE_REDIRECT_URI = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`;
+const YOUTUBE_REDIRECT_URI = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/platform/youtube/callback`;
 const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
@@ -15,7 +15,7 @@ const YOUTUBE_SCOPES = [
 // Instagram Graph API OAuth configuration (Meta Business App)
 const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID;
 const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET;
-const INSTAGRAM_REDIRECT_URI = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/instagram/callback`;
+const INSTAGRAM_REDIRECT_URI = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/platform/instagram/callback`;
 // Scopes for Instagram Graph API with Business accounts
 // Using only basic approved scopes for now
 const INSTAGRAM_SCOPES = [
@@ -124,7 +124,7 @@ export const youtubeCallback = async (req, res) => {
         channelId: platformUserId, 
         channelTitle: platformUsername,
         channelCustomUrl: channelCustomUrl || null,
-        connectedAt: new Date().toISOString()
+        connectedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
       }
     });
 
@@ -314,8 +314,56 @@ export const getPlatformConnections = async (req, res) => {
   try {
     const connections = await PlatformConnection.findByUserId(req.user.id);
     
+    // Auto-refresh expired YouTube tokens
+    const refreshedConnections = await Promise.all(
+      connections.map(async (conn) => {
+        if (conn.platform === 'youtube' && PlatformConnection.isTokenExpired(conn)) {
+          try {
+            // Try to refresh the token
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`
+            );
+
+            oauth2Client.setCredentials({
+              refresh_token: conn.refresh_token
+            });
+
+            const { credentials } = await oauth2Client.refreshAccessToken();
+            const expiresAt = new Date(credentials.expiry_date);
+
+            // Update token in database
+            await PlatformConnection.updateTokens(
+              conn.user_id,
+              'youtube',
+              credentials.access_token,
+              expiresAt
+            );
+
+            logger.info('YouTube token auto-refreshed', { userId: conn.user_id });
+
+            // Return updated connection
+            return {
+              ...conn,
+              access_token: credentials.access_token,
+              expires_at: expiresAt
+            };
+          } catch (refreshError) {
+            logger.error('Auto-refresh failed', { 
+              error: refreshError.message, 
+              userId: conn.user_id 
+            });
+            // Return original connection if refresh fails
+            return conn;
+          }
+        }
+        return conn;
+      })
+    );
+    
     // Return sanitized data (no tokens)
-    const sanitized = connections.map(conn => ({
+    const sanitized = refreshedConnections.map(conn => ({
       platform: conn.platform,
       platformUsername: conn.platform_username,
       platformUserId: conn.platform_user_id,

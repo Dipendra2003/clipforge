@@ -8,6 +8,7 @@ import google.generativeai as genai
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
+from utils.cloudinary_storage import upload_video, upload_image, USE_CLOUD_STORAGE
 
 load_dotenv()
 
@@ -138,15 +139,19 @@ class VideoProcessor:
             prompt = f"""
 Analyze this video transcript and identify the top {num_clips} most viral-worthy moments for short-form content.
 
-Each clip should be approximately {clip_duration} seconds long (can vary by ±10 seconds).
+IMPORTANT REQUIREMENTS:
+1. Each clip MUST be EXACTLY {clip_duration} seconds long
+2. Calculate end_time as: start_time + {clip_duration}
+3. ALWAYS generate a catchy, engaging title for each clip (NOT generic like "Part 1" or "Clip 1")
+4. Titles should be attention-grabbing and describe what makes the moment interesting
 
 For each moment, provide:
 1. Start time (in seconds)
-2. End time (in seconds) - should be around {clip_duration} seconds duration
-3. Emotion/vibe (joy, excitement, surprise, inspiration, humor, etc.)
-4. Viral score (0.0 to 1.0) - must be at least {min_viral_score}
+2. End time (in seconds) - MUST be exactly start_time + {clip_duration}
+3. Emotion/vibe (joy, excitement, surprise, inspiration, humor, tension, etc.)
+4. Viral score (0 to 100) - must be at least {min_viral_score * 100} (as percentage)
 5. Why it's viral-worthy (brief explanation)
-6. Suggested title for the clip
+6. Catchy title for the clip (e.g., "You Won't Believe This!", "The Moment Everything Changed", "Wait For It...")
 
 Transcript:
 {json.dumps(transcript['segments'][:50], indent=2)}
@@ -155,15 +160,20 @@ Respond in JSON format:
 {{
   "clips": [
     {{
-      "start_time": 10.5,
-      "end_time": 55.5,
+      "start_time": 10.0,
+      "end_time": 55.0,
       "emotion": "excitement",
-      "viral_score": 0.92,
+      "viral_score": 92,
       "reason": "High energy moment with surprising revelation",
       "title": "You Won't Believe What Happened Next!"
     }}
   ]
 }}
+
+Remember: 
+- end_time MUST equal start_time + {clip_duration} seconds!
+- viral_score should be 0-100 (percentage)
+- Titles MUST be engaging and specific, NOT generic like "Part 1" or "Clip 1"
 """
             
             response = model.generate_content(prompt)
@@ -177,8 +187,19 @@ Respond in JSON format:
             
             analysis = json.loads(result_text.strip())
             
-            # Filter by viral score
-            filtered_clips = [c for c in analysis['clips'] if c.get('viral_score', 0) >= min_viral_score]
+            # Debug: Print raw AI response
+            print(f"🤖 AI Analysis Response:")
+            for i, clip in enumerate(analysis.get('clips', [])[:3]):
+                score = clip.get('viral_score', 0)
+                # If score is between 0-1, convert to percentage
+                if score <= 1.0:
+                    score = score * 100
+                    clip['viral_score'] = score
+                print(f"  Clip {i+1}: Score={score:.0f}%, Title={clip.get('title', 'N/A')}")
+            
+            # Filter by viral score (convert min_viral_score to percentage if needed)
+            min_score_threshold = min_viral_score * 100 if min_viral_score <= 1.0 else min_viral_score
+            filtered_clips = [c for c in analysis['clips'] if c.get('viral_score', 0) >= min_score_threshold]
             analysis['clips'] = filtered_clips[:num_clips]
             
             print(f"AI identified {len(analysis['clips'])} viral moments")
@@ -242,9 +263,9 @@ Respond in JSON format:
                         "start_time": float(current_time),
                         "end_time": float(clip_end),
                         "emotion": "general",
-                        "viral_score": 0.7,
+                        "viral_score": 75,  # Changed to percentage (0-100)
                         "reason": f"Clip from specified range ({start_time}s - {end_time}s)",
-                        "title": f"Clip {clip_count + 1}"
+                        "title": f"Highlight Clip {clip_count + 1}"
                     })
                     clip_count += 1
                 
@@ -276,9 +297,9 @@ Respond in JSON format:
                         "start_time": float(current_time),
                         "end_time": float(clip_end),
                         "emotion": "general",
-                        "viral_score": 0.7,
+                        "viral_score": 75,  # Changed to percentage (0-100)
                         "reason": f"Auto-divided clip ({clip_duration}s segments)",
-                        "title": f"Part {clip_count + 1}"
+                        "title": f"Video Segment {clip_count + 1}"
                     })
                     clip_count += 1
                 
@@ -302,9 +323,9 @@ Respond in JSON format:
                         "start_time": float(current_time),
                         "end_time": float(clip_end),
                         "emotion": "general",
-                        "viral_score": 0.7,
+                        "viral_score": 75,  # Changed to percentage (0-100)
                         "reason": "Auto-generated clip segment",
-                        "title": f"Clip {clip_count + 1}"
+                        "title": f"Video Clip {clip_count + 1}"
                     })
                     clip_count += 1
                 
@@ -320,15 +341,17 @@ Respond in JSON format:
         duration = end_time - start_time
         
         # Build FFmpeg command
+        # IMPORTANT: -ss before -i for accurate seeking
         cmd = [
             'ffmpeg',
+            '-ss', str(start_time),  # Seek BEFORE input for accuracy
             '-i', self.video_path,
-            '-ss', str(start_time),
             '-t', str(duration),
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-preset', 'fast',
             '-crf', '23',
+            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
             '-y'  # Overwrite output file
         ]
         
@@ -478,6 +501,30 @@ Respond in JSON format:
             print("\nStep 4: Generating thumbnail...")
             thumbnail = self.generate_thumbnail()
             results['thumbnail_path'] = thumbnail
+            
+            # Upload thumbnail to Cloudinary if enabled
+            if thumbnail and USE_CLOUD_STORAGE:
+                print("☁️ Uploading thumbnail to Cloudinary...")
+                upload_result = upload_image(
+                    thumbnail,
+                    folder="thumbnails",
+                    public_id=f"{self.video_id}_thumb"
+                )
+                
+                if upload_result['success']:
+                    results['thumbnail_cloud_url'] = upload_result['secure_url']
+                    print(f"✅ Thumbnail uploaded: {upload_result['secure_url']}")
+                    
+                    # Delete local thumbnail after successful upload
+                    try:
+                        os.remove(thumbnail)
+                        print(f"🗑️ Local thumbnail deleted")
+                    except Exception as e:
+                        print(f"⚠️ Could not delete local thumbnail: {e}")
+                else:
+                    print(f"⚠️ Thumbnail upload failed, keeping local file")
+                    # Keep local file if upload failed
+            
             if progress_callback:
                 progress_callback(60, 'Thumbnail generated')
             
@@ -496,6 +543,11 @@ Respond in JSON format:
                     progress_callback(100, 'No clips to create')
                 return results
             
+            # Create clips subfolder for better organization
+            clips_folder = os.path.join(self.output_dir, "clips")
+            os.makedirs(clips_folder, exist_ok=True)
+            print(f"📁 Clips will be saved to: {clips_folder}")
+            
             # Limit to requested number of clips
             # If num_clips is 0, create all clips (for divide mode)
             if num_clips == 0:
@@ -511,7 +563,7 @@ Respond in JSON format:
             
             for i, clip_data in enumerate(analysis['clips'][:max_clips]):
                 clip_filename = f"{self.video_id}_clip_{i+1}.mp4"
-                clip_path = os.path.join(self.output_dir, clip_filename)
+                clip_path = os.path.join(clips_folder, clip_filename)
                 
                 if progress_callback:
                     progress_callback(
@@ -519,29 +571,79 @@ Respond in JSON format:
                         f'Creating clip {i+1}/{max_clips}...'
                     )
                 
+                # Validate and correct clip duration
+                start_time = float(clip_data['start_time'])
+                end_time = float(clip_data['end_time'])
+                actual_duration = end_time - start_time
+                
+                # If duration is not close to target, adjust end_time
+                target_duration = clip_duration
+                if abs(actual_duration - target_duration) > 5:  # More than 5 seconds off
+                    print(f"⚠️ Clip {i+1} duration {actual_duration:.1f}s differs from target {target_duration}s, adjusting...")
+                    end_time = start_time + target_duration
+                    
+                    # Make sure we don't exceed video duration
+                    video_duration = video_info.get('duration', 0)
+                    if end_time > video_duration:
+                        end_time = video_duration
+                        start_time = max(0, end_time - target_duration)
+                    
+                    print(f"✓ Adjusted to {start_time:.1f}s - {end_time:.1f}s ({end_time - start_time:.1f}s)")
+                
                 # Only add subtitles if they were successfully generated
                 has_subtitles = subtitle_path and os.path.exists(subtitle_path) and os.path.getsize(subtitle_path) > 10
                 
                 success = self.create_clip(
-                    clip_data['start_time'],
-                    clip_data['end_time'],
+                    start_time,
+                    end_time,
                     clip_path,
                     add_subtitles=has_subtitles,
                     subtitle_path=subtitle_path if has_subtitles else None
                 )
                 
                 if success:
-                    clips_created.append({
+                    clip_info = {
                         'clip_number': i + 1,
                         'file_path': clip_path,
-                        'start_time': clip_data['start_time'],
-                        'end_time': clip_data['end_time'],
-                        'duration': clip_data['end_time'] - clip_data['start_time'],
+                        'start_time': start_time,  # Use corrected time
+                        'end_time': end_time,  # Use corrected time
+                        'duration': end_time - start_time,  # Calculate from corrected times
                         'emotion': clip_data.get('emotion', 'general'),
                         'viral_score': clip_data.get('viral_score', 0.7),
                         'title': clip_data.get('title', f'Clip {i+1}'),
                         'reason': clip_data.get('reason', 'Generated clip')
-                    })
+                    }
+                    
+                    # Upload to Cloudinary if enabled
+                    if USE_CLOUD_STORAGE:
+                        if progress_callback:
+                            progress_callback(
+                                int(current_progress), 
+                                f'Uploading clip {i+1}/{max_clips} to cloud...'
+                            )
+                        
+                        print(f"☁️ Uploading clip {i+1} to Cloudinary...")
+                        upload_result = upload_video(
+                            clip_path, 
+                            folder="clips",
+                            public_id=f"{self.video_id}_clip_{i+1}"
+                        )
+                        
+                        if upload_result['success']:
+                            clip_info['cloud_url'] = upload_result['secure_url']
+                            clip_info['cloudinary_public_id'] = upload_result['public_id']
+                            print(f"✅ Clip uploaded: {upload_result['secure_url']}")
+                            
+                            # Delete local file after successful upload
+                            try:
+                                os.remove(clip_path)
+                                print(f"🗑️ Local file deleted: {clip_path}")
+                            except Exception as e:
+                                print(f"⚠️ Could not delete local file: {e}")
+                        else:
+                            print(f"⚠️ Cloud upload failed, keeping local file")
+                    
+                    clips_created.append(clip_info)
                 
                 current_progress += progress_per_clip
             

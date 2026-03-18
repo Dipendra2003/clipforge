@@ -102,7 +102,23 @@ function DashboardOverview() {
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
-        setRecentActivity(activityData.activities || []);
+        const activities = activityData.activities || [];
+        
+        // Debug: Log first activity with all timestamp info
+        if (activities.length > 0) {
+          const first = activities[0];
+          console.log('🕐 Activity Timestamp Debug:', {
+            title: first.title,
+            dbTimestamp: first._debug?.dbTimestamp,
+            isoTimestamp: first._debug?.isoTimestamp,
+            serverNow: first._debug?.now,
+            clientNow: new Date().toISOString(),
+            parsedDate: new Date(first.timestamp),
+            timeAgo: formatTimeAgo(first.timestamp)
+          });
+        }
+        
+        setRecentActivity(activities);
       } else {
         setRecentActivity([]);
       }
@@ -158,10 +174,10 @@ function DashboardOverview() {
   ];
 
   const quickActions = [
-    { label: 'My Videos', icon: '🎬', path: '/videos', color: 'purple' },
-    { label: 'View Clips', icon: '✂️', path: '/clips', color: 'indigo' },
-    { label: 'Schedule Post', icon: '📅', path: '/scheduled', color: 'blue' },
-    { label: 'Analytics', icon: '�', path: '/analytics', color: 'green' },
+    { label: 'My Videos', icon: '🎬', path: '/dashboard/videos', color: 'purple' },
+    { label: 'View Clips', icon: '✂️', path: '/dashboard/clips', color: 'indigo' },
+    { label: 'Schedule Post', icon: '📅', path: '/dashboard/scheduled', color: 'blue' },
+    { label: 'Analytics', icon: '📊', path: '/dashboard/analytics', color: 'green' },
   ];
 
   const handleDrag = (e) => {
@@ -393,6 +409,7 @@ function DashboardOverview() {
             clips: processData.clips,
             subtitleUrl: processData.subtitleUrl,
             thumbnailUrl: processData.thumbnailUrl,
+            thumbnailCloudUrl: processData.thumbnailCloudUrl || null,
             detectedLanguage: processData.detectedLanguage
           })
         });
@@ -597,6 +614,7 @@ function DashboardOverview() {
             clips: processData.clips,
             subtitleUrl: processData.subtitleUrl,
             thumbnailUrl: processData.thumbnailUrl,
+            thumbnailCloudUrl: processData.thumbnailCloudUrl || null,
             detectedLanguage: processData.detectedLanguage
           })
         });
@@ -1608,13 +1626,13 @@ function DashboardOverview() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-gray-700">Viral Score</span>
                       <span className="text-sm font-bold text-purple-600">
-                        {((clip.viralScore || clip.viral_score || 0) * (clip.viralScore ? 1 : 10)).toFixed(2)}/10
+                        {Number(clip.viral_score || 0).toFixed(0)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 h-2 rounded-full"
-                        style={{ width: `${((clip.viralScore || clip.viral_score || 0) * (clip.viralScore ? 10 : 100))}%` }}
+                        style={{ width: `${Number(clip.viral_score || 0)}%` }}
                       ></div>
                     </div>
                   </div>
@@ -1663,37 +1681,45 @@ function DashboardOverview() {
         {/* Recent Activity */}
         <div className="bg-white rounded-xl shadow p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
             {loadingActivity ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
               </div>
             ) : recentActivity.length > 0 ? (
-              recentActivity.map((activity, index) => (
-                <div 
-                  key={`${activity.type}-${activity.id}-${index}`} 
-                  className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
-                >
-                  <div className={`text-2xl flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-${activity.color}-100`}>
-                    {activity.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {activity.description}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs text-gray-500">
-                        {formatTimeAgo(activity.timestamp)}
-                      </p>
-                      {activity.viralScore && (
-                        <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
-                          🔥 {activity.viralScore}
-                        </span>
-                      )}
+              recentActivity.slice(0, 10).map((activity, index) => {
+                // Determine the link based on activity type
+                const activityLink = activity.type === 'video' 
+                  ? `/dashboard/videos/${activity.id}` 
+                  : `/dashboard/clips`;
+                
+                return (
+                  <Link
+                    key={`${activity.type}-${activity.id}-${index}`}
+                    to={activityLink}
+                    className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                  >
+                    <div className={`text-2xl flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-${activity.color}-100`}>
+                      {activity.icon}
                     </div>
-                  </div>
-                </div>
-              ))
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {activity.description}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-gray-500">
+                          {formatTimeAgo(activity.timestamp)}
+                        </p>
+                        {activity.viralScore && (
+                          <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
+                            🔥 {activity.viralScore}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })
             ) : (
               <div className="text-center py-8">
                 <div className="text-4xl mb-2">📭</div>
@@ -1727,9 +1753,23 @@ function DashboardOverview() {
 
 // Helper function to format timestamps
 function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'Unknown';
+  
   const now = new Date();
   const past = new Date(timestamp);
+  
+  // Check if date is valid
+  if (isNaN(past.getTime())) {
+    console.error('Invalid timestamp:', timestamp);
+    return 'Unknown';
+  }
+  
   const diffInSeconds = Math.floor((now - past) / 1000);
+
+  // Handle future dates (clock skew)
+  if (diffInSeconds < 0) {
+    return 'Just now';
+  }
 
   if (diffInSeconds < 60) {
     return 'Just now';

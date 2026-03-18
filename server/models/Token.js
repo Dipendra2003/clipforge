@@ -9,7 +9,7 @@ class Token {
     
     const query = `
       INSERT INTO tokens (user_id, token, type, expires_at, created_at)
-      VALUES ($1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     
@@ -24,7 +24,7 @@ class Token {
     
     const query = `
       INSERT INTO tokens (user_id, token, type, expires_at, created_at)
-      VALUES ($1, $2, $3, $4, NOW())
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     
@@ -36,7 +36,7 @@ class Token {
   static async findByToken(token, type) {
     const query = `
       SELECT * FROM tokens 
-      WHERE token = $1 AND type = $2 AND expires_at > NOW()
+      WHERE token = $1 AND type = $2 AND expires_at > CURRENT_TIMESTAMP
     `;
     const result = await pool.query(query, [token, type]);
     return result.rows[0];
@@ -56,7 +56,7 @@ class Token {
 
   // Clean up expired tokens
   static async cleanupExpired() {
-    const query = 'DELETE FROM tokens WHERE expires_at < NOW()';
+    const query = 'DELETE FROM tokens WHERE expires_at < CURRENT_TIMESTAMP';
     await pool.query(query);
   }
 }

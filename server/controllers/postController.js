@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import PlatformConnection from '../models/PlatformConnection.js';
 import PublishedPost from '../models/PublishedPost.js';
 import Clip from '../models/Clip.js';
@@ -15,108 +16,80 @@ const YOUTUBE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const YOUTUBE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_REDIRECT_URI = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`;
 
-// Process scheduled upload in background
-async function processScheduledUpload(postId, uploadData) {
-  const { userId, clipId, clipPath, title, caption, privacy, connection } = uploadData;
+// Helper function to download clip from Cloudinary if needed
+async function ensureClipExists(clip) {
+  // Prioritize cloud_url if available
+  let clipUrl = clip.cloud_url || clip.file_path;
   
-  try {
-    logger.info('Starting background upload for scheduled post', { postId, clipPath });
-
-    // Update status to uploading
-    await PublishedPost.updateStatus(postId, 'uploading');
-
-    // Check if token is expired and refresh if needed
-    if (PlatformConnection.isTokenExpired(connection)) {
-      logger.info('YouTube token expired, refreshing...', { userId });
-      const newAccessToken = await refreshYouTubeToken(connection);
-      connection.access_token = newAccessToken;
+  // Check if it's a Cloudinary URL
+  if (clipUrl && (clipUrl.startsWith('http://') || clipUrl.startsWith('https://'))) {
+    // Extract filename from URL
+    const urlParts = clipUrl.split('/');
+    const filename = urlParts[urlParts.length - 1];
+    const localPath = path.join(__dirname, '..', 'downloads', 'clips', filename);
+    
+    // Check if file already exists locally
+    if (fs.existsSync(localPath)) {
+      logger.info('Clip already exists locally', { localPath });
+      return localPath;
     }
-
-    // Initialize YouTube API
-    const oauth2Client = new google.auth.OAuth2(
-      YOUTUBE_CLIENT_ID,
-      YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      access_token: connection.access_token,
-      refresh_token: connection.refresh_token
-    });
-
-    const youtube = google.youtube({
-      version: 'v3',
-      auth: oauth2Client
-    });
-
-    // Prepare video metadata
-    const videoDescription = caption || 'Created with ClipForge AI';
-
-    logger.info('Uploading to YouTube (background)', { 
-      title,
-      privacy,
-      postId
-    });
-
-    // Upload with final privacy status (no need for scheduler to update)
-    const uploadResponse = await youtube.videos.insert({
-      part: ['snippet', 'status'],
-      requestBody: {
-        snippet: {
-          title: title,
-          description: videoDescription,
-          categoryId: '22',
-          tags: ['shorts', 'viral', 'clipforge']
-        },
-        status: {
-          privacyStatus: privacy || 'public', // Use final privacy status
-          selfDeclaredMadeForKids: false
-        }
-      },
-      media: {
-        body: fs.createReadStream(clipPath)
-      }
-    });
-
-    const videoId = uploadResponse.data.id;
-    const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
-
-    logger.info('Background YouTube upload successful', { 
-      videoId, 
-      videoUrl,
-      postId
-    });
-
-    // Update post record with video details and set to published (not scheduled)
-    await PublishedPost.updateStatus(
-      postId,
-      'published', // Mark as published since video is already public
-      null,
-      videoId,
-      videoUrl
-    );
-
-    logger.authEvent('YOUTUBE_SCHEDULED_UPLOAD_SUCCESS', userId, { 
-      clipId, 
-      videoId,
-      postId
-    });
-
-  } catch (error) {
-    logger.error('Background upload error', { 
-      postId,
-      error: error.message,
-      stack: error.stack
-    });
-
-    // Update post record with failure
-    await PublishedPost.updateStatus(
-      postId,
-      'failed',
-      `Upload failed: ${error.message}`
-    );
+    
+    // Download from Cloudinary
+    logger.info('Downloading clip from Cloudinary', { url: clipUrl, localPath });
+    
+    // Ensure directory exists
+    const dir = path.dirname(localPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: clipUrl,
+        responseType: 'stream'
+      });
+      
+      const writer = fs.createWriteStream(localPath);
+      response.data.pipe(writer);
+      
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+      
+      logger.info('Clip downloaded successfully', { localPath });
+      return localPath;
+    } catch (error) {
+      logger.error('Failed to download clip from Cloudinary', { 
+        error: error.message, 
+        url: clipUrl 
+      });
+      throw new Error(`Failed to download clip: ${error.message}`);
+    }
   }
+  
+  // Handle local paths (fallback)
+  let clipPath = clip.file_path;
+  
+  // Fix duplicate downloads/ prefix issue
+  if (clipPath && clipPath.includes('downloads/downloads')) {
+    clipPath = clipPath.replace(/downloads\/downloads/g, 'downloads');
+  }
+  
+  if (clipPath && (clipPath.startsWith('downloads/') || clipPath.startsWith('downloads\\'))) {
+    clipPath = path.join(__dirname, '..', clipPath);
+  } else if (clipPath && !path.isAbsolute(clipPath)) {
+    clipPath = path.join(__dirname, '..', 'downloads', 'clips', clipPath);
+  }
+  
+  if (clipPath && fs.existsSync(clipPath)) {
+    return clipPath;
+  }
+  
+  throw new Error(`Clip file not available. No valid cloud_url or local file_path found.`);
 }
+
 
 // Refresh YouTube access token if expired
 async function refreshYouTubeToken(connection) {
@@ -169,7 +142,7 @@ export const postToYouTube = async (req, res) => {
   let postRecord = null;
   
   try {
-    const { clipId, title, caption, privacy, scheduledFor } = req.body;
+    const { clipId, title, caption, privacy, scheduledFor, timezone } = req.body;
     const userId = req.user.id;
 
     // Validate input
@@ -229,45 +202,41 @@ export const postToYouTube = async (req, res) => {
     }
 
     // Verify clip file exists
-    let clipPath = clip.file_path;
-    
-    // Fix duplicate downloads/ prefix issue
-    if (clipPath.includes('downloads/downloads')) {
-      clipPath = clipPath.replace('downloads/downloads', 'downloads');
-    }
-    
-    // Handle different path formats
-    if (clipPath.startsWith('downloads/') || clipPath.startsWith('downloads\\')) {
-      // Relative path from server root
-      clipPath = path.join(__dirname, '..', clipPath);
-    } else if (clipPath.startsWith('http://') || clipPath.startsWith('https://')) {
-      // Extract filename from URL
-      const urlParts = clipPath.split('/');
-      const filename = urlParts[urlParts.length - 1];
-      clipPath = path.join(__dirname, '..', 'downloads', filename);
-    } else if (!path.isAbsolute(clipPath)) {
-      // Assume it's just a filename
-      clipPath = path.join(__dirname, '..', 'downloads', clipPath);
-    }
-
-    console.log('Resolved clip path:', clipPath);
-
-    if (!fs.existsSync(clipPath)) {
-      console.error('Clip file not found:', clipPath);
-      console.error('Original file_path from DB:', clip.file_path);
+    let clipPath;
+    try {
+      clipPath = await ensureClipExists(clip);
+      logger.info('Clip ready for upload', { clipPath });
+    } catch (error) {
+      logger.error('Failed to prepare clip for upload', { 
+        error: error.message,
+        clipId,
+        filePath: clip.file_path 
+      });
       return res.status(404).json({ 
-        error: 'Clip file not found',
-        message: 'The clip file does not exist on the server',
-        debug: {
-          dbPath: clip.file_path,
-          resolvedPath: clipPath
-        }
+        error: 'Clip file not available',
+        message: error.message
       });
     }
 
     // Create post record
-    const isScheduled = scheduledFor && new Date(scheduledFor) > new Date();
-    const scheduledDate = isScheduled ? new Date(scheduledFor) : null;
+    let isScheduled = false;
+    let scheduledDate = null;
+    
+    if (scheduledFor) {
+      // If timezone is provided (IST), treat the datetime as IST
+      if (timezone === 'Asia/Kolkata') {
+        // Parse as IST datetime string (e.g., "2026-03-01T17:27:00")
+        // Store it as-is in database with timezone
+        scheduledDate = new Date(scheduledFor + '+05:30'); // Add IST offset
+      } else {
+        // Fallback to treating as UTC
+        scheduledDate = new Date(scheduledFor);
+      }
+      
+      // Check if scheduled time is in the future
+      const now = new Date();
+      isScheduled = scheduledDate > now;
+    }
     
     postRecord = await PublishedPost.create({
       userId,
@@ -275,35 +244,19 @@ export const postToYouTube = async (req, res) => {
       platform: 'youtube',
       title: title.trim(),
       caption: caption?.trim() || '',
-      status: isScheduled ? 'pending' : 'uploading',
+      status: isScheduled ? 'scheduled' : 'uploading',
       scheduledFor: scheduledDate,
       isScheduled: isScheduled,
       metadata: { privacy: privacy || 'public' }
     });
 
-    // For scheduled posts, process upload in background and respond immediately
+    // For scheduled posts, DON'T upload now - let scheduler handle it
     if (isScheduled) {
-      logger.info('Scheduling YouTube upload for later', { 
+      logger.info('Post scheduled for later', { 
         userId, 
         clipId, 
         postId: postRecord.id,
         scheduledFor: scheduledDate
-      });
-
-      // Process upload asynchronously
-      processScheduledUpload(postRecord.id, {
-        userId,
-        clipId,
-        clipPath,
-        title: title.trim(),
-        caption: caption?.trim() || '',
-        privacy: privacy || 'public',
-        connection
-      }).catch(error => {
-        logger.error('Background upload failed', { 
-          postId: postRecord.id,
-          error: error.message 
-        });
       });
 
       // Update clip status
@@ -312,13 +265,13 @@ export const postToYouTube = async (req, res) => {
       // Respond immediately
       return res.json({
         success: true,
-        message: `Video scheduled for ${scheduledDate.toLocaleString('en-US', { timeZone: 'UTC' })} UTC. Upload will begin shortly.`,
+        message: `Video scheduled for ${scheduledDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST. It will be uploaded automatically at the scheduled time.`,
         scheduled: true,
         scheduledFor: scheduledDate,
         post: {
           id: postRecord.id,
           platform: 'youtube',
-          status: 'pending',
+          status: 'scheduled',
           title: title.trim(),
           caption: caption?.trim() || '',
           scheduledFor: scheduledDate,
@@ -449,7 +402,7 @@ export const postToYouTube = async (req, res) => {
     res.json({
       success: true,
       message: isScheduled 
-        ? `Video uploaded! Will be published on ${scheduledDate.toLocaleString('en-US', { timeZone: 'UTC' })} UTC`
+        ? `Video uploaded! Will be published on ${scheduledDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`
         : 'Clip posted to YouTube successfully!',
       scheduled: isScheduled,
       scheduledFor: scheduledDate,

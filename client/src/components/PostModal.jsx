@@ -61,9 +61,9 @@ function PostModal({ clip, onClose, onSuccess }) {
 
       // Add scheduling if enabled
       if (isScheduled) {
-        // Combine date and time into UTC timestamp
-        const localDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-        requestBody.scheduledFor = localDateTime.toISOString();
+        // Send IST time as-is (user selected IST time)
+        requestBody.scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
+        requestBody.timezone = 'Asia/Kolkata'; // IST
       }
 
       const response = await axios.post(
@@ -74,7 +74,8 @@ function PostModal({ clip, onClose, onSuccess }) {
 
       if (response.data.success) {
         if (response.data.scheduled) {
-          toast.success(`Scheduled for ${new Date(response.data.scheduledFor).toLocaleString()}`);
+          const scheduledTime = new Date(response.data.scheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          toast.success(`Scheduled for ${scheduledTime} IST`);
         } else {
           toast.success('Posted to YouTube Shorts!');
         }
@@ -121,7 +122,7 @@ function PostModal({ clip, onClose, onSuccess }) {
               <div className="flex gap-3 text-xs text-gray-600 mt-1">
                 <span>⏱️ {clip.duration}s</span>
                 {clip.emotion && <span>😊 {clip.emotion}</span>}
-                {clip.viral_score && <span>🔥 {(clip.viral_score * 100).toFixed(0)}%</span>}
+                {clip.viral_score && <span>🔥 {Number(clip.viral_score).toFixed(0)}%</span>}
               </div>
             </div>
           </div>

@@ -98,16 +98,51 @@ class PublishedPost {
   }
 
   static async findScheduledPosts() {
+    // First, let's see what's in the database
+    const debugQuery = `
+      SELECT pp.id, pp.title, pp.scheduled_for, pp.status, pp.is_scheduled,
+             NOW() as current_time,
+             (pp.scheduled_for <= NOW()) as is_ready
+      FROM published_posts pp
+      WHERE pp.status = 'scheduled' 
+        AND pp.is_scheduled = true
+    `;
+    const debugResult = await pool.query(debugQuery);
+    
+    if (debugResult.rows.length > 0) {
+      console.log(`\n🔍 Scheduled posts in database:`);
+      debugResult.rows.forEach(post => {
+        const scheduledIST = new Date(post.scheduled_for).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        const currentIST = new Date(post.current_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        console.log(`   Post ID: ${post.id} | "${post.title}"`);
+        console.log(`   Scheduled: ${scheduledIST} (${post.scheduled_for})`);
+        console.log(`   Current:   ${currentIST} (${post.current_time})`);
+        console.log(`   Ready to publish: ${post.is_ready}`);
+        console.log('');
+      });
+    }
+    
     const query = `
-      SELECT pp.*, c.file_path, c.transcript
+      SELECT pp.*, c.file_path, c.transcript, c.cloud_url
       FROM published_posts pp
       JOIN clips c ON pp.clip_id = c.id
       WHERE pp.status = 'scheduled' 
         AND pp.is_scheduled = true 
-        AND pp.scheduled_for <= (NOW() AT TIME ZONE 'Asia/Kolkata')::timestamp
+        AND pp.scheduled_for <= NOW() + INTERVAL '1 minute'
       ORDER BY pp.scheduled_for ASC
     `;
     const result = await pool.query(query);
+    
+    // Log when posts are found
+    if (result.rows.length > 0) {
+      console.log(`\n🔔 Found ${result.rows.length} scheduled post(s) ready to publish!`);
+      result.rows.forEach(post => {
+        const scheduledIST = new Date(post.scheduled_for).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        const nowIST = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        console.log(`   📅 Post ID: ${post.id} | Scheduled: ${scheduledIST} | Now: ${nowIST}`);
+      });
+    }
+    
     return result.rows;
   }
 

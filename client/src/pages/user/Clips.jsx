@@ -345,11 +345,12 @@ function Clips() {
                 <video 
                   key={clip.id || clip.file_path}
                   src={(() => {
-                    const url = getVideoUrl(clip.file_path);
+                    const url = getVideoUrl(clip.file_path, clip.cloud_url);
                     console.log('🎥 Rendering video:', {
                       clipId: clip.id,
                       clipTitle: clip.title,
                       dbFilePath: clip.file_path,
+                      cloudUrl: clip.cloud_url,
                       constructedUrl: url
                     });
                     return url;
@@ -396,7 +397,7 @@ function Clips() {
                 </div>
                 {clip.viral_score && (
                   <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-1 rounded text-xs font-semibold">
-                    🔥 {(clip.viral_score * 10 * 10).toFixed(0)}%
+                    🔥 {Number(clip.viral_score).toFixed(0)}%
                   </div>
                 )}
               </div>
@@ -442,7 +443,7 @@ function Clips() {
                 
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                   <span>{clip.start_time}s - {clip.end_time}s</span>
-                  <span>{new Date(clip.created_at).toLocaleDateString()}</span>
+                  <span>{new Date(clip.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                 </div>
                 
                 {showPostSuccess?.clipId === clip.id ? (
@@ -502,7 +503,7 @@ function Clips() {
                         {getPostData(clip.id).status === 'scheduled' && (
                           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
                             <span>📅</span>
-                            <span className="font-medium">Scheduled for {new Date(getPostData(clip.id).scheduled_for).toLocaleString()}</span>
+                            <span className="font-medium">Scheduled for {new Date(getPostData(clip.id).scheduled_for).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>
                           </div>
                         )}
                         {getPostData(clip.id).status === 'published' && (
@@ -568,11 +569,11 @@ function Clips() {
                       <>
                         <div className="flex gap-2">
                           <a 
-                            href={getVideoUrl(clip.file_path)}
+                            href={getVideoUrl(clip.file_path, clip.cloud_url)}
                             download={`${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`}
                             onClick={(e) => {
                               e.preventDefault();
-                              const url = getVideoUrl(clip.file_path);
+                              const url = getVideoUrl(clip.file_path, clip.cloud_url);
                               fetch(url)
                                 .then(response => response.blob())
                                 .then(blob => {
@@ -627,7 +628,7 @@ function Clips() {
                       </button>
                       <button 
                         onClick={() => {
-                          const url = getVideoUrl(clip.file_path);
+                          const url = getVideoUrl(clip.file_path, clip.cloud_url);
                           if (navigator.share) {
                             navigator.share({
                               title: clip.title,
