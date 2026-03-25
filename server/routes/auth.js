@@ -1,7 +1,7 @@
 import express from 'express';
 import * as authController from '../controllers/authController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
-import { validateSignup, validateLogin, validateResetPassword } from '../middleware/validator.js';
+import { validateSignup, validateLogin, validateResetPassword, validateProfileUpdate, validatePasswordChange, validateEmailOnly, validateOTPVerification } from '../middleware/validator.js';
 import createRateLimiter from '../middleware/rateLimiter.js';
 import { getCsrfToken } from '../middleware/csrf.js';
 
@@ -23,7 +23,7 @@ const strictAuthLimiter = createRateLimiter({
 
 const generalLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 1000 // Increased for development
 });
 
 // CSRF token endpoint
@@ -36,12 +36,15 @@ router.post('/google', authLimiter, authController.googleAuth);
 router.post('/refresh-token', generalLimiter, authController.refreshToken);
 router.post('/verify-email', generalLimiter, authController.verifyEmail);
 router.post('/resend-verification', strictAuthLimiter, authController.resendVerification);
-router.post('/forgot-password', strictAuthLimiter, authController.forgotPassword);
+router.post('/forgot-password', strictAuthLimiter, validateEmailOnly, authController.forgotPassword);
+router.post('/verify-otp', strictAuthLimiter, validateOTPVerification, authController.verifyOTP);
 router.post('/reset-password', strictAuthLimiter, validateResetPassword, authController.resetPassword);
 
 // Protected routes (require authentication)
 router.post('/logout', authenticate, authController.logout);
 router.post('/logout-all', authenticate, authController.logoutAll);
 router.get('/me', authenticate, authController.getCurrentUser);
+router.put('/profile', authenticate, validateProfileUpdate, authController.updateProfile);
+router.put('/password', authenticate, validatePasswordChange, authController.changePassword);
 
 export default router;

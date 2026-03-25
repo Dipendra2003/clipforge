@@ -6,14 +6,33 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function Settings() {
-  const { user, logout, logoutAll } = useAuth();
+  const { user, logout, logoutAll, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [platformConnections, setPlatformConnections] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Profile form state
+  const [profileData, setProfileData] = useState({
+    name: user?.name || ''
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  
+  // Password form state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   // Fetch platform connections on mount
   useEffect(() => {
     fetchPlatformConnections();
+    
+    // Update profile data when user changes
+    if (user) {
+      setProfileData({ name: user.name });
+    }
     
     // Check for OAuth callback success/error
     const params = new URLSearchParams(window.location.search);
@@ -50,14 +69,14 @@ function Settings() {
       toast.error(errorMessage);
       window.history.replaceState({}, '', '/dashboard/settings');
     }
-  }, []);
+  }, [user]); // Add user as dependency
 
   const fetchPlatformConnections = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/platform/connections`);
       setPlatformConnections(response.data.connections || []);
     } catch (error) {
-      console.error('Error fetching platform connections:', error);
+      // Silent fail
     }
   };
 
@@ -92,7 +111,7 @@ function Settings() {
       await axios.delete(`${API_URL}/api/platform/connections/${platform}`);
       toast.success(`${platform} disconnected successfully`);
       fetchPlatformConnections();
-    } catch (error) {
+    } catch {
       toast.error(`Failed to disconnect ${platform}`);
     } finally {
       setLoading(false);
@@ -113,14 +132,6 @@ function Settings() {
     return connection?.isExpired || false;
   };
 
-  const getConnectionStatus = (platform) => {
-    const connection = platformConnections.find(conn => conn.platform === platform);
-    if (!connection) return { connected: false, message: 'Not connected' };
-    if (!connection.platformUserId) return { connected: false, message: 'Invalid connection' };
-    if (connection.isExpired) return { connected: true, expired: true, message: 'Connection expired' };
-    return { connected: true, expired: false, message: 'Connected' };
-  };
-
   const handleLogoutAll = async () => {
     if (window.confirm('Are you sure you want to logout from all devices?')) {
       try {
@@ -129,6 +140,93 @@ function Settings() {
       } catch {
         toast.error('Error logging out');
       }
+    }
+  };
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!profileData.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+
+    if (profileData.name.trim().length < 2) {
+      toast.error('Name must be at least 2 characters long');
+      return;
+    }
+
+    setProfileLoading(true);
+    try {
+      const response = await axios.put(`${API_URL}/api/auth/profile`, {
+        name: profileData.name.trim()
+      });
+
+      // Update user context
+      if (updateUser) {
+        updateUser(response.data.user);
+      }
+
+      toast.success('Profile updated successfully');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Error updating profile';
+      toast.error(message);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!passwordData.currentPassword) {
+      toast.error('Current password is required');
+      return;
+    }
+
+    if (!passwordData.newPassword) {
+      toast.error('New password is required');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters long');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const response = await axios.put(`${API_URL}/api/auth/password`, {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+
+      // Clear form
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+
+      toast.success('Password changed successfully');
+      
+      // If backend requires re-authentication, handle it
+      if (response.data.requireReauth) {
+        toast.info('Please log in again with your new password');
+        setTimeout(() => {
+          logout();
+        }, 2000);
+      }
+    } catch (err) {
+      const message = err.response?.data?.message || 'Error changing password';
+      toast.error(message);
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -157,29 +255,35 @@ function Settings() {
       {activeTab === 'profile' && (
         <div className="bg-white rounded-xl shadow p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Profile Information</h2>
-          <form className="space-y-4">
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
               <input
                 type="text"
-                defaultValue={user?.name}
+                value={profileData.name}
+                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                required
+                minLength={2}
+                maxLength={50}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
-                defaultValue={user?.email}
+                value={user?.email || ''}
                 disabled
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
             </div>
             <button
               type="submit"
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+              disabled={profileLoading}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Changes
+              {profileLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
         </div>
@@ -189,35 +293,56 @@ function Settings() {
       {activeTab === 'password' && (
         <div className="bg-white rounded-xl shadow p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Change Password</h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-              <input
-                type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
-              />
+          {user?.google_id && !user?.password ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800">
+                <strong>Google Account:</strong> You signed up with Google and don't have a password set. 
+                You can continue using Google Sign-In or contact support if you need to set a password.
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-              <input
-                type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-              <input
-                type="password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
-            >
-              Update Password
-            </button>
-          </form>
+          ) : (
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                <input
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                <input
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                  required
+                  minLength={8}
+                />
+                <p className="text-xs text-gray-500 mt-1">At least 8 characters with letters and numbers</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {passwordLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 

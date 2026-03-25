@@ -13,6 +13,7 @@ import Contact from './pages/Contact';
 import Blog from './pages/Blog';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import ShareClip from './pages/ShareClip';
 
 // Auth Pages
 import Login from './pages/auth/Login';
@@ -62,6 +63,9 @@ function App() {
             {/* OAuth Callback Routes */}
             <Route path="auth/youtube/callback" element={<OAuthCallback />} />
           </Route>
+
+          {/* Public Share Page (No Layout) */}
+          <Route path="/share/:clipId" element={<ShareClip />} />
           
           {/* User Dashboard Routes */}
           <Route path="/dashboard" element={

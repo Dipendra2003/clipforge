@@ -65,6 +65,13 @@ class User {
     return result.rows[0];
   }
 
+  // Update profile
+  static async updateProfile(userId, { name }) {
+    const query = 'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, name, email, role, email_verified, google_id, created_at';
+    const result = await pool.query(query, [name, userId]);
+    return result.rows[0];
+  }
+
   // Delete user
   static async delete(userId) {
     const query = 'DELETE FROM users WHERE id = $1';

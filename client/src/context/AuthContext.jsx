@@ -26,7 +26,6 @@ export const AuthProvider = ({ children }) => {
           setUser(response.user);
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
         removeToken();
       } finally {
         setLoading(false);
@@ -64,6 +63,10 @@ export const AuthProvider = ({ children }) => {
     return response;
   };
 
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   const value = {
     user,
     loading,
@@ -72,6 +75,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     logoutAll,
     googleLogin,
+    updateUser,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin'
   };

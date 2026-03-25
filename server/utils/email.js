@@ -91,9 +91,9 @@ export const sendVerificationEmail = async (email, token, otp) => {
 };
 
 // Send password reset email
-export const sendPasswordResetEmail = async (email, token) => {
+export const sendPasswordResetEmail = async (email, linkToken, otpToken) => {
   const transporter = createTransporter();
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${linkToken}`;
 
   const mailOptions = {
     from: process.env.SMTP_FROM || `"${process.env.APP_NAME || 'ClipForge AI'}" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
@@ -109,6 +109,9 @@ export const sendPasswordResetEmail = async (email, token) => {
           .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
           .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
           .button { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .otp-box { background: white; border: 2px dashed #667eea; padding: 20px; text-align: center; margin: 20px 0; border-radius: 10px; }
+          .otp-code { font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: monospace; }
+          .divider { text-align: center; margin: 30px 0; color: #999; }
           .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
           .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }
         </style>
@@ -120,16 +123,33 @@ export const sendPasswordResetEmail = async (email, token) => {
           </div>
           <div class="content">
             <p>We received a request to reset your password for your ${process.env.APP_NAME || 'ClipForge AI'} account.</p>
-            <p>Click the button below to reset your password:</p>
+            <p>You can reset your password using either method below:</p>
+            
+            <div class="otp-box">
+              <p style="margin: 0 0 10px 0; font-size: 16px; color: #666; font-weight: bold;">🔑 Your Reset Code</p>
+              <div class="otp-code">${otpToken}</div>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">⏰ Expires in 15 minutes</p>
+              <p style="margin: 5px 0 0 0; font-size: 12px; color: #667eea;">
+                <strong>Go to:</strong> ${process.env.FRONTEND_URL}/reset-password
+              </p>
+            </div>
+
+            <div class="divider">
+              <p>────── OR ──────</p>
+            </div>
+
+            <p><strong>Option 2:</strong> Or click the button below for direct reset:</p>
             <div style="text-align: center;">
               <a href="${resetUrl}" class="button">Reset Password</a>
             </div>
             <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #667eea;">${resetUrl}</p>
+            <p style="word-break: break-all; color: #667eea; font-size: 12px;">${resetUrl}</p>
+            
             <div class="warning">
               <strong>⚠️ Security Notice:</strong>
               <ul>
-                <li>This link will expire in 1 hour</li>
+                <li>Reset code expires in 15 minutes</li>
+                <li>Reset link expires in 1 hour</li>
                 <li>You will be logged out from all devices after resetting</li>
                 <li>If you didn't request this, please ignore this email</li>
               </ul>
@@ -147,6 +167,14 @@ export const sendPasswordResetEmail = async (email, token) => {
   try {
     await transporter.sendMail(mailOptions);
     console.log('Password reset email sent to:', email);
+    
+    // Development logging (server-side only - secure)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📧 Development Mode - Email Content Summary:');
+      console.log('   - OTP Code:', otpToken);
+      console.log('   - Reset Link:', resetUrl);
+      console.log('   - Both options included in email');
+    }
   } catch (error) {
     console.error('Error sending password reset email:', error);
     throw error;

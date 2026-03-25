@@ -3,14 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from '../utils/toast';
 
+// Global flag to prevent multiple initializations across component instances
+let googleInitialized = false;
+
 function GoogleSignInButton({ text = 'signin_with' }) {
   const buttonRef = useRef(null);
   const navigate = useNavigate();
   const { googleLogin } = useAuth();
 
   useEffect(() => {
-    // Initialize Google Sign-In
-    if (window.google) {
+    // Initialize Google Sign-In only once globally
+    if (window.google && !googleInitialized) {
+      googleInitialized = true;
+      
       window.google.accounts.id.initialize({
         client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
@@ -18,17 +23,21 @@ function GoogleSignInButton({ text = 'signin_with' }) {
       });
 
       // Render the button
-      window.google.accounts.id.renderButton(
-        buttonRef.current,
-        {
-          theme: 'outline',
-          size: 'large',
-          text: text,
-          width: buttonRef.current?.offsetWidth || 320,
-          logo_alignment: 'left',
-        }
-      );
+      if (buttonRef.current) {
+        window.google.accounts.id.renderButton(
+          buttonRef.current,
+          {
+            theme: 'outline',
+            size: 'large',
+            text: text,
+            width: buttonRef.current?.offsetWidth || 320,
+            logo_alignment: 'left',
+          }
+        );
+      }
     }
+
+    // Note: We don't reset googleInitialized on unmount to prevent re-initialization
   }, []);
 
   const handleCredentialResponse = async (response) => {
@@ -43,7 +52,6 @@ function GoogleSignInButton({ text = 'signin_with' }) {
         navigate('/dashboard');
       }
     } catch (error) {
-      console.error('Google sign-in error:', error);
       toast.error(error.response?.data?.message || 'Google sign-in failed. Please try again.');
     }
   };

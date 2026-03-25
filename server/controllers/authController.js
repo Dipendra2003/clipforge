@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Session from '../models/Session.js';
 import Token from '../models/Token.js';
+import pool from '../config/database.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email.js';
 import { OAuth2Client } from 'google-auth-library';
 import logger from '../utils/logger.js';
@@ -362,50 +363,150 @@ export const forgotPassword = async (req, res) => {
 
     const user = await User.findByEmail(email);
     if (!user) {
-      // Don't reveal if user exists
-      return res.json({ message: 'If that email exists, a password reset link has been sent' });
+      // Don't reveal if user exists - always return success
+      return res.json({ 
+        message: 'If that email exists, a password reset code has been sent'
+      });
     }
 
-    // Delete old reset tokens
+    // Delete old reset tokens for this user
     await Token.deleteByUserIdAndType(user.id, 'reset');
 
-    // Generate reset token
-    const resetToken = await Token.create(user.id, 'reset', 60); // 1 hour
+    // Generate both link token and OTP
+    const resetToken = await Token.create(user.id, 'reset', 60); // 1 hour for link
+    const otpToken = await Token.createOTP(user.id, 'reset', 15); // 15 minutes for OTP
 
-    // Send reset email
-    await sendPasswordResetEmail(email, resetToken.token);
+    // Send email with both options
+    try {
+      await sendPasswordResetEmail(email, resetToken.token, otpToken.token);
+      
+      // Log OTP in server console for development testing (secure)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔐 Development Mode - Password Reset Details:');
+        console.log('   📧 Email:', email);
+        console.log('   🔑 OTP Code:', otpToken.token);
+        console.log('   ⏰ OTP expires in 15 minutes');
+        console.log('   🔗 Link expires in 1 hour');
+      }
 
-    res.json({ message: 'If that email exists, a password reset link has been sent' });
+      logger.authEvent('PASSWORD_RESET_REQUESTED', user.id, { email, ip: req.ip });
+    } catch (emailError) {
+      logger.error('Failed to send password reset email', { 
+        error: emailError.message, 
+        email, 
+        userId: user.id 
+      });
+      // Still return success to not reveal if email exists
+    }
+
+    res.json({ 
+      message: 'If that email exists, a password reset code has been sent'
+    });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    logger.error('Forgot password error', { error: error.message, ip: req.ip });
     res.status(500).json({ message: 'Error processing request' });
   }
 };
 
-// Reset password
+// Reset password with token or OTP
 export const resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { token, password, method = 'link' } = req.body;
 
-    // Find token
+    if (!token) {
+      return res.status(400).json({ 
+        message: 'Reset code is required' 
+      });
+    }
+
+    // Find token (works for both link tokens and OTP)
     const tokenRecord = await Token.findByToken(token, 'reset');
+    
     if (!tokenRecord) {
-      return res.status(400).json({ message: 'Invalid or expired reset token' });
+      logger.security('Password reset with invalid/expired token', { 
+        method, 
+        ip: req.ip 
+      });
+      return res.status(400).json({ 
+        message: method === 'otp' 
+          ? 'Invalid or expired code. Please request a new one.' 
+          : 'Invalid or expired reset link. Please request a new one.' 
+      });
     }
 
     // Update password
     await User.updatePassword(tokenRecord.user_id, password);
 
-    // Delete token
-    await Token.delete(token);
+    // Delete all reset tokens for this user
+    await Token.deleteByUserIdAndType(tokenRecord.user_id, 'reset');
 
-    // Delete all sessions (logout from all devices)
+    // Delete all sessions (logout from all devices for security)
     await Session.deleteAllByUserId(tokenRecord.user_id);
 
-    res.json({ message: 'Password reset successfully!' });
+    logger.authEvent('PASSWORD_RESET_SUCCESS', tokenRecord.user_id, { 
+      method, 
+      ip: req.ip 
+    });
+
+    res.json({ 
+      message: 'Password reset successfully! Please log in with your new password.' 
+    });
   } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({ message: 'Error resetting password' });
+    logger.error('Reset password error', { error: error.message, ip: req.ip });
+    res.status(500).json({ message: 'Error resetting password. Please try again.' });
+  }
+};
+
+// Verify OTP without resetting password
+export const verifyOTP = async (req, res) => {
+  try {
+    const { token, email } = req.body;
+
+    // Find user by email
+    const user = await User.findByEmail(email);
+    if (!user) {
+      logger.security('OTP verification attempt with invalid email', { email, ip: req.ip });
+      return res.status(400).json({ 
+        message: 'Invalid verification code or email' 
+      });
+    }
+
+    // Find OTP token
+    const tokenRecord = await Token.findByToken(token, 'reset');
+    
+    if (!tokenRecord) {
+      logger.security('OTP verification with invalid/expired token', { 
+        email, 
+        userId: user.id, 
+        ip: req.ip 
+      });
+      return res.status(400).json({ 
+        message: 'Invalid or expired code. Please request a new one.' 
+      });
+    }
+
+    if (tokenRecord.user_id !== user.id) {
+      logger.security('OTP verification token mismatch', { 
+        email, 
+        userId: user.id, 
+        tokenUserId: tokenRecord.user_id,
+        ip: req.ip 
+      });
+      return res.status(400).json({ 
+        message: 'Invalid verification code' 
+      });
+    }
+
+    // OTP is valid - don't delete it yet, we'll need it for password reset
+    logger.authEvent('OTP_VERIFIED', user.id, { email, ip: req.ip });
+
+    res.json({ 
+      message: 'Code verified successfully',
+      verified: true 
+    });
+  } catch (error) {
+    logger.error('OTP verification error', { error: error.message, ip: req.ip });
+    res.status(500).json({ message: 'Error verifying code' });
   }
 };
 
@@ -424,5 +525,94 @@ export const getCurrentUser = async (req, res) => {
   } catch (error) {
     console.error('Get current user error:', error);
     res.status(500).json({ message: 'Error fetching user' });
+  }
+};
+
+// Update profile
+export const updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const userId = req.user.id;
+
+    // Update user profile using User model
+    const updatedUser = await User.updateProfile(userId, { name: name.trim() });
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    logger.authEvent('PROFILE_UPDATED', userId, { name: name.trim(), ip: req.ip });
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        emailVerified: updatedUser.email_verified
+      }
+    });
+  } catch (error) {
+    logger.error('Update profile error', { error: error.message, userId: req.user.id, ip: req.ip });
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+};
+
+// Change password
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    // Get user with password
+    const query = 'SELECT * FROM users WHERE id = $1';
+    const result = await pool.query(query, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Check if user has a password (not OAuth-only account)
+    if (!user.password) {
+      return res.status(400).json({ message: 'Cannot change password for OAuth-only accounts' });
+    }
+
+    // Verify current password
+    const isValidPassword = await User.verifyPassword(currentPassword, user.password);
+    if (!isValidPassword) {
+      logger.security('Failed password change attempt', { userId, ip: req.ip });
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    await User.updatePassword(userId, newPassword);
+
+    // Log out from all devices for security
+    await Session.deleteAllByUserId(userId);
+
+    logger.authEvent('PASSWORD_CHANGED', userId, { ip: req.ip });
+
+    // Clear refresh token cookie
+    res.clearCookie('refreshToken');
+
+    res.json({ 
+      message: 'Password changed successfully. Please log in again.',
+      requireReauth: true
+    });
+  } catch (error) {
+    logger.error('Change password error', { error: error.message, userId: req.user.id, ip: req.ip });
+    res.status(500).json({ message: 'Error changing password' });
   }
 };

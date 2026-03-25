@@ -111,10 +111,67 @@ const validateResetPassword = (req, res, next) => {
   next();
 };
 
+const validateProfileUpdate = (req, res, next) => {
+  let { name } = req.body;
+  
+  // Sanitize name
+  name = sanitizeInput(name);
+  
+  if (!name || !isValidName(name)) {
+    return res.status(400).json({ 
+      message: 'Name must be 2-50 characters and contain only letters, spaces, hyphens, or apostrophes' 
+    });
+  }
+  
+  // Update sanitized name
+  req.body.name = name;
+  
+  next();
+};
+
+const validateOTPVerification = (req, res, next) => {
+  let { email, token } = req.body;
+  
+  // Sanitize email
+  email = sanitizeInput(email);
+  
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ message: 'Please provide a valid email address' });
+  }
+  
+  if (!token || !/^\d{6}$/.test(token)) {
+    return res.status(400).json({ message: 'Please provide a valid 6-digit OTP code' });
+  }
+  
+  // Update sanitized email
+  req.body.email = email.toLowerCase();
+  
+  next();
+};
+
+const validatePasswordChange = (req, res, next) => {
+  const { currentPassword, newPassword } = req.body;
+  
+  if (!currentPassword) {
+    return res.status(400).json({ message: 'Current password is required' });
+  }
+  
+  if (!newPassword || !isValidPassword(newPassword)) {
+    return res.status(400).json({ 
+      message: 'New password must be at least 8 characters with at least one letter and one number' 
+    });
+  }
+  
+  next();
+};
+
 export {
   validateSignup,
   validateLogin,
   validateEmailOnly,
+  validateOTPVerification,
   validateResetPassword,
+  validateProfileUpdate,
+  validatePasswordChange,
   sanitizeInput
 };

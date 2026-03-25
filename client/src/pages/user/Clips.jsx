@@ -628,16 +628,16 @@ function Clips() {
                       </button>
                       <button 
                         onClick={() => {
-                          const url = getVideoUrl(clip.file_path, clip.cloud_url);
+                          const shareUrl = `${window.location.origin}/share/${clip.id}`;
                           if (navigator.share) {
                             navigator.share({
                               title: clip.title,
                               text: `Check out this viral clip!`,
-                              url: url
+                              url: shareUrl
                             }).catch(err => console.log('Share error:', err));
                           } else {
-                            navigator.clipboard.writeText(url);
-                            toast.success('Clip URL copied to clipboard!');
+                            navigator.clipboard.writeText(shareUrl);
+                            toast.success('Share link copied to clipboard!');
                           }
                         }}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"

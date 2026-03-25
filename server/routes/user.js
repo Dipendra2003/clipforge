@@ -105,7 +105,7 @@ router.get('/dashboard/activity', async (req, res) => {
           'completed' as status,
           c.created_at as created_at,
           c.thumbnail_path,
-          NULL as thumbnail_cloud_url,
+          v.thumbnail_cloud_url as thumbnail_cloud_url,
           v.title as video_title,
           c.viral_score
         FROM clips c

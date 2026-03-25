@@ -28,7 +28,6 @@ function PostModal({ clip, onClose, onSuccess }) {
         toast.success('Caption generated with AI!');
       }
     } catch (error) {
-      console.error('Caption generation error:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to generate caption';
       toast.error(errorMessage);
     } finally {
@@ -83,7 +82,6 @@ function PostModal({ clip, onClose, onSuccess }) {
         onClose();
       }
     } catch (error) {
-      console.error('Post error:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to post to YouTube';
       toast.error(errorMessage);
     } finally {

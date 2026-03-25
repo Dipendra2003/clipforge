@@ -10,18 +10,15 @@
 export function getVideoUrl(filePath, cloudUrl = null) {
   // Priority 1: Use cloud URL if available
   if (cloudUrl && (cloudUrl.startsWith('http://') || cloudUrl.startsWith('https://'))) {
-    console.log('☁️  Using Cloudinary URL:', cloudUrl);
     return cloudUrl;
   }
 
   if (!filePath) {
-    console.warn('⚠️  No file path provided');
     return '';
   }
 
   // Priority 2: If already a full URL, return as is
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    console.log('✅ Using full URL:', filePath);
     return filePath;
   }
 
@@ -37,11 +34,6 @@ export function getVideoUrl(filePath, cloudUrl = null) {
 
   // Construct Flask server URL - use localhost instead of 127.0.0.1 for consistency
   const videoUrl = `http://localhost:5001/video/${filename}`;
-  
-  console.log('🎬 Video URL constructed:', {
-    input: filePath,
-    output: videoUrl
-  });
 
   return videoUrl;
 }
@@ -91,7 +83,6 @@ export function downloadFile(url, filename, onSuccess, onError) {
       if (onSuccess) onSuccess();
     })
     .catch(error => {
-      console.error('Download error:', error);
       if (onError) onError(error);
     });
 }

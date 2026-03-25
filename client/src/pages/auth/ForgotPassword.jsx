@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -13,17 +15,26 @@ function ForgotPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/forgot-password`, {
-        email
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/forgot-password`, {
+        email: email.trim().toLowerCase()
       });
       
-      setMessage({ type: 'success', text: response.data.message || 'Password reset link sent to your email!' });
-      setEmail('');
+      setMessage({ 
+        type: 'success', 
+        text: 'Password reset code sent! Check your email.' 
+      });
+      setEmailSent(true);
+      
+      // Redirect to OTP verification page after 2 seconds
+      setTimeout(() => {
+        navigate(`/reset-password?mode=otp&email=${encodeURIComponent(email.trim().toLowerCase())}`);
+      }, 2000);
     } catch (error) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.message || 'Failed to send reset link. Please try again.' 
+        text: error.response?.data?.message || 'Failed to send reset code. Please try again.' 
       });
+      setEmailSent(false);
     } finally {
       setLoading(false);
     }
@@ -76,8 +87,35 @@ function ForgotPassword() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Sending...' : 'Send reset link'}
+              {loading ? 'Sending...' : 'Send reset instructions'}
             </button>
+
+            {emailSent && message.type === 'success' && (
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-3">
+                  <strong>📧 Email sent!</strong> Check your inbox for a 6-digit code. Redirecting...
+                </p>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/reset-password?mode=otp&email=${encodeURIComponent(email.trim().toLowerCase())}`)}
+                    className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg text-center text-sm font-medium hover:bg-purple-700 transition"
+                  >
+                    Enter Code Now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailSent(false);
+                      setMessage({ type: '', text: '' });
+                    }}
+                    className="flex-1 border border-purple-600 text-purple-600 py-2 px-4 rounded-lg text-center text-sm font-medium hover:bg-purple-50 transition"
+                  >
+                    Try Different Email
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
 
           <div className="mt-6 text-center">

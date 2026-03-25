@@ -45,7 +45,6 @@ function VideoDetails() {
         navigate('/dashboard/videos');
       }
     } catch (error) {
-      console.error('Error fetching video details:', error);
       toast.error('Failed to load video details');
     } finally {
       setLoading(false);
@@ -75,7 +74,6 @@ function VideoDetails() {
         toast.error('Failed to update video');
       }
     } catch (error) {
-      console.error('Error updating video:', error);
       toast.error('Failed to update video');
     }
   };
@@ -97,7 +95,6 @@ function VideoDetails() {
         toast.error('Failed to delete video');
       }
     } catch (error) {
-      console.error('Error deleting video:', error);
       toast.error('Failed to delete video');
     }
   };
@@ -150,8 +147,7 @@ function VideoDetails() {
                 });
               }}
               onError={(e) => {
-                console.error('Video load error:', e);
-                console.log('Attempted URL:', e.target.src);
+                // Silent error handling
               }}
             />
           ) : (
@@ -312,19 +308,13 @@ function VideoDetails() {
                       });
                     }}
                     onLoadStart={() => {
-                      console.log('✅ Video loading started for clip:', clip.id);
+                      // Video loading started
                     }}
                     onLoadedMetadata={(e) => {
-                      console.log('✅ Video loaded successfully!');
-                      console.log('  - Duration:', e.target.duration);
-                      console.log('  - Video dimensions:', e.target.videoWidth, 'x', e.target.videoHeight);
+                      // Video loaded successfully
                     }}
                     onError={(e) => {
-                      console.error('❌ Clip video load error!');
-                      console.error('  - Clip ID:', clip.id);
-                      console.error('  - Attempted URL:', e.target.src);
-                      console.error('  - Original file_path:', clip.file_path);
-                      console.error('  - Error:', e);
+                      // Clip video load error
                     }}
                   />
                   <div className="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
@@ -370,7 +360,6 @@ function VideoDetails() {
                           toast.success('Downloading clip...');
                         })
                         .catch(error => {
-                          console.error('Download error:', error);
                           toast.error('Failed to download clip');
                         });
                     }}

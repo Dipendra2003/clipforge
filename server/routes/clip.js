@@ -5,6 +5,39 @@ import Video from '../models/Video.js';
 
 const router = express.Router();
 
+// PUBLIC: Get clip by ID for sharing (no auth required)
+router.get('/public/:clipId', async (req, res) => {
+  try {
+    const clip = await Clip.findById(req.params.clipId);
+
+    if (!clip) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+
+    // Get video info for additional context
+    const video = await Video.findById(clip.video_id);
+
+    // Transform clip to use cloud URL if available and convert viral_score to number
+    const transformedClip = {
+      id: clip.id,
+      title: clip.title,
+      duration: clip.duration,
+      start_time: clip.start_time,
+      end_time: clip.end_time,
+      emotion: clip.emotion,
+      viral_score: clip.viral_score ? Number(clip.viral_score) : null,
+      created_at: clip.created_at,
+      clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`,
+      videoTitle: video?.title || 'Untitled Video'
+    };
+
+    res.json({ clip: transformedClip });
+  } catch (error) {
+    console.error('Get public clip error:', error);
+    res.status(500).json({ error: 'Failed to fetch clip' });
+  }
+});
+
 // Get user's clips
 router.get('/my-clips', authenticate, async (req, res) => {
   try {

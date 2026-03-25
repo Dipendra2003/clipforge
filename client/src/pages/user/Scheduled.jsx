@@ -44,7 +44,6 @@ function Scheduled() {
       });
 
       if ((shouldRefresh || hasUploadingPosts) && !refreshing) {
-        console.log('Auto-refreshing scheduled posts...', { hasUploadingPosts, shouldRefresh });
         fetchScheduledPosts();
       }
     };
@@ -87,7 +86,6 @@ function Scheduled() {
         setScheduledPosts(newPosts);
       }
     } catch (error) {
-      console.error('Fetch scheduled posts error:', error);
       if (!loading) {
         toast.error('Failed to load scheduled posts');
       }
@@ -116,7 +114,6 @@ function Scheduled() {
         setScheduledPosts(prev => prev.filter(post => post.id !== postId));
       }
     } catch (error) {
-      console.error('Cancel post error:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to cancel post';
       toast.error(errorMessage);
     } finally {

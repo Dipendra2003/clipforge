@@ -52,13 +52,13 @@ function DashboardOverview() {
     loadStats();
     loadRecentClips();
     loadRecentActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadStats = async () => {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        console.log('No token found, skipping stats load');
         return;
       }
 
@@ -78,8 +78,8 @@ function DashboardOverview() {
           totalViews: statsData.totalViews || 0
         });
       }
-    } catch (error) {
-      console.error('Error loading stats:', error);
+    } catch {
+      // Silent error handling
     }
   };
 
@@ -88,7 +88,6 @@ function DashboardOverview() {
       setLoadingActivity(true);
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        console.log('No token found, skipping activity load');
         setRecentActivity([]);
         setLoadingActivity(false);
         return;
@@ -104,26 +103,12 @@ function DashboardOverview() {
         const activityData = await activityResponse.json();
         const activities = activityData.activities || [];
         
-        // Debug: Log first activity with all timestamp info
-        if (activities.length > 0) {
-          const first = activities[0];
-          console.log('🕐 Activity Timestamp Debug:', {
-            title: first.title,
-            dbTimestamp: first._debug?.dbTimestamp,
-            isoTimestamp: first._debug?.isoTimestamp,
-            serverNow: first._debug?.now,
-            clientNow: new Date().toISOString(),
-            parsedDate: new Date(first.timestamp),
-            timeAgo: formatTimeAgo(first.timestamp)
-          });
-        }
         
         setRecentActivity(activities);
       } else {
         setRecentActivity([]);
       }
-    } catch (error) {
-      console.error('Error loading activity:', error);
+    } catch {
       setRecentActivity([]);
     } finally {
       setLoadingActivity(false);
@@ -134,11 +119,8 @@ function DashboardOverview() {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        console.log('No token found, skipping clip load');
         return;
       }
-
-      console.log('Loading recent clips...');
       
       const response = await fetch('http://localhost:5000/api/clips/my-clips?limit=10', {
         headers: {
@@ -146,11 +128,8 @@ function DashboardOverview() {
         }
       });
 
-      console.log('Load clips response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('Loaded clips:', data);
         if (data.clips && data.clips.length > 0) {
           setGeneratedClips(data.clips);
           setShowClips(true);
@@ -158,11 +137,10 @@ function DashboardOverview() {
         // Reload stats to update clip count
         loadStats();
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.warn('Failed to load clips:', errorData);
+        await response.json().catch(() => ({}));
       }
-    } catch (error) {
-      console.error('Error loading clips:', error);
+    } catch {
+      // Silent error handling
     }
   };
 
@@ -439,8 +417,7 @@ function DashboardOverview() {
         }
       }, 500);
       
-    } catch (error) {
-      console.error('Error:', error);
+    } catch {
       toast.error('Failed to connect to server. Make sure Flask server is running on port 5001.');
     } finally {
       if (downloadProgressInterval) clearInterval(downloadProgressInterval);
@@ -644,7 +621,6 @@ function DashboardOverview() {
       }, 500);
 
     } catch (error) {
-      console.error('Error:', error);
       toast.error(error.message || 'Failed to process video.');
     } finally {
       if (uploadProgressInterval) clearInterval(uploadProgressInterval);
@@ -1600,10 +1576,8 @@ function DashboardOverview() {
                         }
                       });
                     }}
-                    onError={(e) => {
-                      console.error('Video load error:', e);
-                      console.log('Attempted URL:', e.target.src);
-                      console.log('Original clip data:', clip);
+                    onError={() => {
+                      // Silent error handling
                     }}
                   >
                     Your browser does not support the video tag.
@@ -1661,8 +1635,7 @@ function DashboardOverview() {
                             window.URL.revokeObjectURL(blobUrl);
                             toast.success('Downloading clip...');
                           })
-                          .catch(error => {
-                            console.error('Download error:', error);
+                          .catch(() => {
                             toast.error('Failed to download clip');
                           });
                       }}
@@ -1693,15 +1666,51 @@ function DashboardOverview() {
                   ? `/dashboard/videos/${activity.id}` 
                   : `/dashboard/clips`;
                 
+                // Check if activity has valid thumbnail URL
+                const hasThumbnail = (activity.thumbnailUrl || activity.thumbnail_cloud_url) && 
+                                    (activity.thumbnailUrl?.startsWith('http') || activity.thumbnail_cloud_url?.startsWith('http'));
+                
                 return (
                   <Link
                     key={`${activity.type}-${activity.id}-${index}`}
                     to={activityLink}
                     className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition cursor-pointer"
                   >
-                    <div className={`text-2xl flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-${activity.color}-100`}>
-                      {activity.icon}
-                    </div>
+                    {/* Thumbnail or Icon */}
+                    {hasThumbnail ? (
+                      <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-black border-2 border-purple-200 relative group">
+                        <img 
+                          src={activity.thumbnailUrl || activity.thumbnail_cloud_url}
+                          alt={activity.title || 'Video thumbnail'}
+                          className="w-full h-full object-cover brightness-90 group-hover:brightness-110 transition-all"
+                          loading="lazy"
+                          onLoad={() => {
+                            // Thumbnail loaded successfully
+                          }}
+                          onError={(e) => {
+                            // Hide broken image and show icon instead
+                            e.target.style.display = 'none';
+                            const iconDiv = document.createElement('div');
+                            iconDiv.className = `w-full h-full flex items-center justify-center text-2xl bg-${activity.color}-100`;
+                            iconDiv.textContent = activity.icon;
+                            e.target.parentElement.appendChild(iconDiv);
+                          }}
+                        />
+                        {/* Play icon overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 group-hover:bg-opacity-30 transition-all">
+                          <div className="w-8 h-8 rounded-full bg-white bg-opacity-90 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-purple-600 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`text-2xl flex-shrink-0 w-16 h-16 flex items-center justify-center rounded-lg bg-${activity.color}-100 border-2 border-gray-300`}>
+                        {activity.icon}
+                      </div>
+                    )}
+                    
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {activity.description}
@@ -1760,7 +1769,6 @@ function formatTimeAgo(timestamp) {
   
   // Check if date is valid
   if (isNaN(past.getTime())) {
-    console.error('Invalid timestamp:', timestamp);
     return 'Unknown';
   }
   

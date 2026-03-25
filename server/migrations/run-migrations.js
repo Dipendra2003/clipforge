@@ -78,6 +78,8 @@ async function runMigrations() {
         error_message TEXT,
         has_subtitles BOOLEAN DEFAULT false,
         subtitle_path TEXT,
+        cloud_url TEXT,
+        thumbnail_cloud_url TEXT,
         metadata JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -97,8 +99,10 @@ async function runMigrations() {
         duration INTEGER NOT NULL,
         file_path TEXT NOT NULL,
         thumbnail_path TEXT,
+        cloud_url TEXT,
+        cloudinary_public_id TEXT,
         emotion VARCHAR(50),
-        viral_score DECIMAL(3,2),
+        viral_score DECIMAL(5,2),
         transcript TEXT,
         status VARCHAR(20) NOT NULL DEFAULT 'completed' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'posted')),
         metadata JSONB,
@@ -162,12 +166,14 @@ async function runMigrations() {
       CREATE INDEX idx_videos_status ON videos(status);
       CREATE INDEX idx_videos_created_at ON videos(created_at DESC);
       CREATE INDEX idx_videos_source_type ON videos(source_type);
+      CREATE INDEX idx_videos_cloud_url ON videos(cloud_url) WHERE cloud_url IS NOT NULL;
       CREATE INDEX idx_clips_video_id ON clips(video_id);
       CREATE INDEX idx_clips_user_id ON clips(user_id);
       CREATE INDEX idx_clips_status ON clips(status);
       CREATE INDEX idx_clips_viral_score ON clips(viral_score DESC);
       CREATE INDEX idx_clips_created_at ON clips(created_at DESC);
       CREATE INDEX idx_clips_emotion ON clips(emotion);
+      CREATE INDEX idx_clips_cloud_url ON clips(cloud_url) WHERE cloud_url IS NOT NULL;
       CREATE INDEX idx_platform_connections_user_id ON platform_connections(user_id);
       CREATE INDEX idx_platform_connections_platform ON platform_connections(platform);
       CREATE INDEX idx_platform_connections_expires_at ON platform_connections(expires_at);

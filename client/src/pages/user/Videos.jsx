@@ -21,12 +21,9 @@ function Videos() {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        console.error('No authentication token found');
         toast.error('Please log in again');
         return;
       }
-
-      console.log('Fetching videos with token:', token.substring(0, 20) + '...');
       
       const response = await fetch('http://localhost:5000/api/videos/my-videos', {
         headers: {
@@ -34,19 +31,14 @@ function Videos() {
         }
       });
 
-      console.log('Videos response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('Videos data:', data);
         setVideos(data.videos);
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Failed to load videos:', errorData);
         toast.error(`Failed to load videos: ${errorData.error || response.statusText}`);
       }
     } catch (error) {
-      console.error('Error fetching videos:', error);
       toast.error(`Failed to load videos: ${error.message}`);
     } finally {
       setLoading(false);
@@ -82,7 +74,6 @@ function Videos() {
         toast.error('Failed to update video');
       }
     } catch (error) {
-      console.error('Error updating video:', error);
       toast.error('Failed to update video');
     }
   };
@@ -105,7 +96,6 @@ function Videos() {
         toast.error('Failed to delete video');
       }
     } catch (error) {
-      console.error('Error deleting video:', error);
       toast.error('Failed to delete video');
     }
   };
