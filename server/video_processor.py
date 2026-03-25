@@ -2,13 +2,35 @@
 Video Processing Pipeline with Whisper, FFmpeg, and Gemini AI
 """
 import os
+import sys
 import json
+import warnings
 import whisper
 import google.generativeai as genai
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 from utils.cloudinary_storage import upload_video, upload_image, USE_CLOUD_STORAGE
+
+# Suppress PyTorch warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='torch')
+warnings.filterwarnings('ignore', category=FutureWarning, module='torch')
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+# Suppress specific PyTorch cleanup warnings
+import atexit
+original_excepthook = sys.excepthook
+
+def custom_excepthook(exc_type, exc_value, exc_traceback):
+    # Ignore PyTorch cleanup errors
+    if exc_type == KeyboardInterrupt:
+        print('\n\n🛑 Processing interrupted by user')
+        return
+    if 'torch' in str(exc_value).lower() or 'weakref' in str(exc_value).lower():
+        return
+    original_excepthook(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = custom_excepthook
 
 load_dotenv()
 

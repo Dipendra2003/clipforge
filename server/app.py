@@ -2,12 +2,32 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 import yt_dlp
 import os
+import sys
 import uuid
 import json
 import time
 import threading
+import signal
+import warnings
 from video_processor import VideoProcessor
 from werkzeug.utils import secure_filename
+
+# Suppress PyTorch cleanup warnings on exit
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', message='.*torch.*')
+
+# Handle graceful shutdown
+shutdown_in_progress = False
+
+def signal_handler(sig, frame):
+    global shutdown_in_progress
+    if not shutdown_in_progress:
+        shutdown_in_progress = True
+        print('\n🛑 Shutting down server gracefully...')
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 app = Flask(__name__)
 CORS(app)
@@ -398,4 +418,9 @@ def get_video_info(video_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    # Disable reloader to prevent duplicate shutdown messages
+    # Or use use_reloader=False for cleaner shutdown
+    print("🚀 Starting ClipForge AI Server on http://127.0.0.1:5001")
+    print("📹 Video processing ready!")
+    print("Press Ctrl+C to stop\n")
+    app.run(debug=True, port=5001, use_reloader=False)

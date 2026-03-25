@@ -75,8 +75,8 @@ function Settings() {
     try {
       const response = await axios.get(`${API_URL}/api/platform/connections`);
       setPlatformConnections(response.data.connections || []);
-    } catch (error) {
-      // Silent fail
+    } catch {
+      // Silent fail - connections are optional
     }
   };
 
