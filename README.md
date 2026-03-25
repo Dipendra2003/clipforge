@@ -24,11 +24,12 @@ Transform long-form videos into viral-ready clips automatically using AI, then p
 - **Bulk Publishing** - Publish multiple clips across platforms simultaneously
 
 ### 🎥 Video Management
-- **YouTube Download** - Download and process YouTube videos directly
-- **File Upload** - Support for MP4, MOV, AVI, MKV, WEBM formats
-- **Quality Selection** - Choose from 360p to 4K quality
-- **Batch Processing** - Process multiple videos simultaneously
-- **Cloud Storage** - Secure video and clip storage
+- **YouTube Download** - Download videos from YouTube/Vimeo/Dailymotion with quality selection (360p to 4K)
+- **File Upload** - Support for MP4, MOV, AVI, MKV, WEBM formats (up to 500MB)
+- **Quality Selection** - Choose source video quality during download (affects final clip quality)
+- **Smart Processing** - FFmpeg-powered clip creation with optimized encoding settings
+- **Cloud Storage** - Optional Cloudinary integration for video and clip storage
+- **Local Storage** - Automatic cleanup of processed files to save disk space
 
 ### 🔐 User Management
 - **JWT Authentication** - Secure token-based authentication
@@ -95,41 +96,87 @@ cp .env.example .env
 ```
 
 Edit `server/.env` with your credentials:
+
 ```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/clipforge
+# =============================================================================
+# REQUIRED CONFIGURATION
+# =============================================================================
 
-# JWT Secrets (generate strong random strings)
-JWT_SECRET=your-super-secret-jwt-key
-JWT_REFRESH_SECRET=your-super-secret-refresh-key
+# Server Configuration
+PORT=5000
+FLASK_PORT=5001
+NODE_ENV=development
+BACKEND_URL=http://localhost:5000
+FRONTEND_URL=http://localhost:5173
 
-# Google OAuth
+# Database (PostgreSQL)
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/clipforge
+
+# JWT Secrets (Generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+JWT_SECRET=your-generated-secret-here
+JWT_REFRESH_SECRET=your-generated-refresh-secret-here
+ACCESS_TOKEN_EXPIRY=24h
+REFRESH_TOKEN_EXPIRY=30d
+
+# Email (Gmail - Use App Password, not regular password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-16-char-app-password
+SMTP_FROM=ClipForge <noreply@clipforge.com>
+
+# Google OAuth (Get from: https://console.cloud.google.com/apis/credentials)
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# Email (Gmail example)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-specific-password
-
-# AI
+# AI Configuration (Get from: https://makersuite.google.com/app/apikey)
 GEMINI_API_KEY=your-gemini-api-key
+USE_GEMINI=true
+GEMINI_MODEL=gemini-2.0-flash-exp
 
-# Platform OAuth (Optional - for social media publishing)
+# =============================================================================
+# OPTIONAL CONFIGURATION
+# =============================================================================
+
+# Cloudinary (Cloud Storage - Get from: https://cloudinary.com)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+USE_CLOUD_STORAGE=true
+
+# Instagram Graph API (Get from: https://developers.facebook.com/apps/)
 INSTAGRAM_APP_ID=your-meta-app-id
 INSTAGRAM_APP_SECRET=your-meta-app-secret
+
+# Security Settings
+MAX_LOGIN_ATTEMPTS=5
+LOCKOUT_DURATION_MINUTES=15
+ENABLE_SECURITY_LOGGING=true
+ENABLE_RATE_LIMITING=true
+
+# File Upload Settings
+MAX_FILE_SIZE=500
+ALLOWED_EXTENSIONS=mp4,mov,avi,mkv,webm
+
+# Processing Defaults
+DEFAULT_CLIP_DURATION=45
+DEFAULT_NUM_CLIPS=5
+DEFAULT_VIDEO_QUALITY=720p
+DEFAULT_MIN_VIRAL_SCORE=0.5
 ```
 
 **Client Configuration:**
 ```bash
 cd ../client
-cp .env .env.local
+cp .env.example .env.local
 ```
 
 Edit `client/.env.local`:
 ```env
+# API Configuration
 VITE_API_URL=http://localhost:5000
+
+# Google OAuth (Must match server configuration)
 VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
@@ -208,12 +255,14 @@ http://localhost:5173
 #### Custom Clip Settings
 
 When processing videos, you can customize:
-- **Clip Duration**: 15s, 30s, 45s, 60s, or custom
-- **Number of Clips**: Generate 3-10 clips
-- **Minimum Viral Score**: Filter clips by viral potential
-- **Emotion Filter**: Focus on specific emotions
-- **Quality**: Choose output quality (360p to 4K)
-- **Subtitle Language**: Auto-detect or specify language
+- **Clip Duration**: 15s, 30s, 45s, 60s, or custom (15-90 seconds)
+- **Number of Clips**: Generate 1-10 clips per video
+- **Minimum Viral Score**: Filter clips by viral potential (0-100%)
+- **Emotion Filter**: Focus on specific emotions (joy, excitement, surprise, tension, inspiration)
+- **Processing Mode**: AI-powered, equal division, or custom time ranges
+- **Quality**: Choose source video download quality (360p to 4K) - clips inherit this quality
+- **Subtitle Language**: Auto-detect or specify language (supports 50+ languages via Whisper AI)
+- **Skip Subtitles**: Fast mode - skip subtitle generation for quicker processing
 
 #### Social Media Publishing
 
@@ -449,85 +498,259 @@ clipforge/
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Environment Variables Reference
 
-#### Server (.env)
+#### Server Environment Variables (`server/.env`)
 
-```env
-# Server Configuration
-PORT=5000
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-APP_NAME=ClipForge AI
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PORT` | Yes | `5000` | Node.js server port |
+| `FLASK_PORT` | Yes | `5001` | Python Flask server port |
+| `NODE_ENV` | Yes | `development` | Environment mode (`development` or `production`) |
+| `BACKEND_URL` | Yes | `http://localhost:5000` | Backend API URL |
+| `FRONTEND_URL` | Yes | `http://localhost:5173` | Frontend URL (for CORS) |
+| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | - | Secret for access tokens (64+ chars) |
+| `JWT_REFRESH_SECRET` | Yes | - | Secret for refresh tokens (64+ chars) |
+| `ACCESS_TOKEN_EXPIRY` | No | `24h` | Access token expiration time |
+| `REFRESH_TOKEN_EXPIRY` | No | `30d` | Refresh token expiration time |
+| `SMTP_HOST` | Yes | `smtp.gmail.com` | SMTP server hostname |
+| `SMTP_PORT` | Yes | `587` | SMTP server port |
+| `SMTP_USER` | Yes | - | SMTP username/email |
+| `SMTP_PASSWORD` | Yes | - | SMTP password (Gmail App Password) |
+| `SMTP_FROM` | No | `ClipForge <noreply@clipforge.com>` | Email sender name |
+| `GOOGLE_CLIENT_ID` | Yes | - | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | - | Google OAuth client secret |
+| `GEMINI_API_KEY` | Yes | - | Google Gemini API key |
+| `USE_GEMINI` | No | `true` | Enable/disable Gemini AI |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash-exp` | Gemini model version |
+| `CLOUDINARY_CLOUD_NAME` | No | - | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | No | - | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | No | - | Cloudinary API secret |
+| `USE_CLOUD_STORAGE` | No | `true` | Enable cloud storage |
+| `INSTAGRAM_APP_ID` | No | - | Meta/Instagram app ID |
+| `INSTAGRAM_APP_SECRET` | No | - | Meta/Instagram app secret |
+| `MAX_LOGIN_ATTEMPTS` | No | `5` | Max failed login attempts |
+| `LOCKOUT_DURATION_MINUTES` | No | `15` | Account lockout duration |
+| `SESSION_CLEANUP_INTERVAL` | No | `24` | Session cleanup interval (hours) |
+| `ENABLE_SECURITY_LOGGING` | No | `true` | Enable security event logging |
+| `ENABLE_RATE_LIMITING` | No | `true` | Enable API rate limiting |
+| `MAX_FILE_SIZE` | No | `500` | Maximum video upload size (MB) |
+| `ALLOWED_EXTENSIONS` | No | `mp4,mov,avi,mkv,webm` | Allowed video file formats |
+| `DEFAULT_CLIP_DURATION` | No | `45` | Default clip duration (seconds) |
+| `DEFAULT_NUM_CLIPS` | No | `5` | Default number of clips to generate |
+| `DEFAULT_VIDEO_QUALITY` | No | `720p` | Default video download quality |
+| `DEFAULT_MIN_VIRAL_SCORE` | No | `0.5` | Default minimum viral score filter |
 
-# Database (PostgreSQL)
-DATABASE_URL=postgresql://user:password@localhost:5432/clipforge
+**Future Platform Integrations (Optional - Coming Soon):**
 
-# JWT Secrets (Generate strong random strings)
-JWT_SECRET=your-super-secret-jwt-key
-JWT_REFRESH_SECRET=your-super-secret-refresh-key
-ACCESS_TOKEN_EXPIRY=15m
-REFRESH_TOKEN_EXPIRY=30d
+| Variable | Description |
+|----------|-------------|
+| `YOUTUBE_CLIENT_ID` | YouTube Data API v3 client ID |
+| `YOUTUBE_CLIENT_SECRET` | YouTube Data API v3 client secret |
+| `TIKTOK_CLIENT_KEY` | TikTok API client key |
+| `TIKTOK_CLIENT_SECRET` | TikTok API client secret |
+| `TWITTER_API_KEY` | Twitter/X API key |
+| `TWITTER_API_SECRET` | Twitter/X API secret |
+| `TWITTER_BEARER_TOKEN` | Twitter/X bearer token |
+| `FACEBOOK_APP_ID` | Facebook API app ID |
+| `FACEBOOK_APP_SECRET` | Facebook API app secret |
 
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+#### Client Environment Variables (`client/.env.local`)
 
-# Email Configuration (SMTP)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-specific-password
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VITE_API_URL` | Yes | `http://localhost:5000` | Backend API URL |
+| `VITE_GOOGLE_CLIENT_ID` | Yes | - | Google OAuth client ID (must match server) |
 
-# AI Configuration
-GEMINI_API_KEY=your-gemini-api-key
+**Note:** Vite only exposes variables prefixed with `VITE_` to the frontend.
 
-# Platform OAuth (Optional)
-INSTAGRAM_APP_ID=your-meta-app-id
-INSTAGRAM_APP_SECRET=your-meta-app-secret
+### Getting API Keys & Credentials
 
-# Security
-MAX_LOGIN_ATTEMPTS=5
-LOCKOUT_DURATION_MINUTES=15
-ENABLE_SECURITY_LOGGING=true
-ENABLE_RATE_LIMITING=true
+#### 1. PostgreSQL Database
+
+**Local Setup (Development):**
+```bash
+# Install PostgreSQL
+# Windows: Download from https://www.postgresql.org/download/windows/
+# Mac: brew install postgresql
+# Linux: sudo apt-get install postgresql
+
+# Create database
+psql -U postgres
+CREATE DATABASE clipforge;
+\q
+
+# Update DATABASE_URL in .env
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/clipforge
 ```
 
-#### Client (.env)
+**Remote Setup (Production):**
+- [Neon](https://neon.tech/) - Serverless PostgreSQL (Free tier: 0.5 GB)
+- [Supabase](https://supabase.com/) - PostgreSQL + Auth (Free tier: 500 MB)
+- [Railway](https://railway.app/) - PostgreSQL + Hosting (Free tier: $5 credit)
 
-```env
-VITE_API_URL=http://localhost:5000
-VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+#### 2. JWT Secrets
+
+Generate strong random secrets:
+```bash
+# Run this command twice to generate both secrets
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-### Getting API Keys
+Copy the output to `JWT_SECRET` and `JWT_REFRESH_SECRET` in `.env`
 
-#### Google OAuth
+#### 3. Google OAuth
+
+**Setup Steps:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
+2. Create a new project (or select existing)
+3. Enable **Google+ API**:
+   - Go to "APIs & Services" → "Library"
+   - Search for "Google+ API"
+   - Click "Enable"
+4. Create OAuth 2.0 credentials:
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Application type: "Web application"
+   - Name: "ClipForge AI"
 5. Add authorized redirect URIs:
-   - `http://localhost:5173/auth/callback`
-   - `http://localhost:5000/api/auth/google/callback`
+   ```
+   http://localhost:5173/auth/callback
+   http://localhost:5000/api/auth/google/callback
+   https://your-domain.com/auth/callback (for production)
+   ```
+6. Copy **Client ID** and **Client Secret**
+7. Add to both `server/.env` and `client/.env.local`
 
-#### Google Gemini AI
+#### 4. Gmail App Password (Email Service)
+
+**Setup Steps:**
+1. Enable 2-Factor Authentication on your Google account:
+   - Go to [Google Account Security](https://myaccount.google.com/security)
+   - Enable "2-Step Verification"
+2. Generate App Password:
+   - Go to [App Passwords](https://myaccount.google.com/apppasswords)
+   - Select "Mail" and "Other (Custom name)"
+   - Name it "ClipForge AI"
+   - Click "Generate"
+3. Copy the 16-character password (format: `xxxx xxxx xxxx xxxx`)
+4. Add to `SMTP_PASSWORD` in `.env` (remove spaces)
+
+**Alternative Email Providers:**
+- [SendGrid](https://sendgrid.com/) - 100 emails/day free
+- [Mailgun](https://www.mailgun.com/) - 5,000 emails/month free
+- [Resend](https://resend.com/) - 3,000 emails/month free
+
+#### 5. Google Gemini AI
+
+**Setup Steps:**
 1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create an API key
-3. Copy to `GEMINI_API_KEY` in `.env`
+2. Sign in with your Google account
+3. Click "Get API Key" → "Create API key"
+4. Copy the API key
+5. Add to `GEMINI_API_KEY` in `.env`
 
-#### Gmail App Password
-1. Enable 2-Factor Authentication on your Google account
-2. Go to [App Passwords](https://myaccount.google.com/apppasswords)
-3. Generate a new app password
-4. Use it as `EMAIL_PASS` in `.env`
+**Free Tier Limits:**
+- 60 requests per minute
+- 1,500 requests per day
+- Sufficient for development and small-scale production
 
-#### Instagram/Meta (Optional)
+#### 6. Cloudinary (Optional - Cloud Storage)
+
+**Setup Steps:**
+1. Sign up at [Cloudinary](https://cloudinary.com/users/register/free)
+2. Free tier includes:
+   - 25 GB storage
+   - 25 GB bandwidth/month
+   - 25,000 transformations/month
+3. Get credentials from [Console](https://console.cloudinary.com/):
+   - Cloud Name
+   - API Key
+   - API Secret
+4. Add to `.env`:
+   ```env
+   CLOUDINARY_CLOUD_NAME=your-cloud-name
+   CLOUDINARY_API_KEY=your-api-key
+   CLOUDINARY_API_SECRET=your-api-secret
+   USE_CLOUD_STORAGE=true
+   ```
+
+**Benefits:**
+- Automatic file cleanup (saves local disk space)
+- CDN delivery (faster video loading)
+- Video transformations
+- Scalable storage
+
+#### 7. Instagram Graph API (Optional - For Publishing)
+
+**Setup Steps:**
 1. Go to [Meta for Developers](https://developers.facebook.com/)
-2. Create a new app (Business type)
-3. Add Instagram Graph API product
-4. Get App ID and App Secret
-5. Configure OAuth redirect URI
+2. Create new app:
+   - Click "Create App"
+   - Type: "Business"
+   - Name: "ClipForge AI"
+3. Add products:
+   - Facebook Login
+   - Instagram Graph API
+4. Configure OAuth redirect URI:
+   ```
+   http://localhost:5000/api/platforms/instagram/callback
+   https://your-domain.com/api/platforms/instagram/callback
+   ```
+5. Get App ID and App Secret from Settings → Basic
+6. Add to `.env`:
+   ```env
+   INSTAGRAM_APP_ID=your-meta-app-id
+   INSTAGRAM_APP_SECRET=your-meta-app-secret
+   ```
+
+**Requirements:**
+- User must have Instagram Creator or Business account
+- Instagram account must be connected to a Facebook Page
+- App must be in "Live" mode (requires Meta review for production)
+
+**Testing:**
+- Use "Development" mode for testing with your own account
+- No review needed for development mode
+
+#### 8. YouTube Data API (Optional - Coming Soon)
+
+**Setup Steps:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Enable **YouTube Data API v3**
+3. Create OAuth 2.0 credentials (same project as Google OAuth)
+4. Add redirect URI:
+   ```
+   http://localhost:5000/api/platforms/youtube/callback
+   ```
+5. Add to `.env`:
+   ```env
+   YOUTUBE_CLIENT_ID=your-youtube-client-id
+   YOUTUBE_CLIENT_SECRET=your-youtube-client-secret
+   ```
+
+**Free Tier Limits:**
+- 10,000 quota units per day
+- 1 video upload = 1,600 units
+- Sufficient for ~6 uploads per day
+
+#### 9. Other Platforms (Coming Soon)
+
+**TikTok API:**
+- Apply at [TikTok for Developers](https://developers.tiktok.com/)
+- Requires business verification
+- Video posting available in API v2
+
+**Twitter/X API:**
+- Apply at [Twitter Developer Portal](https://developer.twitter.com/)
+- Free tier: 1,500 tweets/month
+- Elevated access required for media uploads
+
+**Facebook API:**
+- Use same Meta app as Instagram
+- Supports video posts to Facebook Pages
+- Requires page management permissions
 
 ---
 
@@ -535,31 +758,58 @@ VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 
 ### Whisper Model Selection
 
-Edit `server/video_processor.py`:
+Edit `server/video_processor.py` line 27:
 
 ```python
 # Trade-off: Speed vs Accuracy
 model = self.load_whisper_model("base")
 
-# Options:
-# - tiny: Fastest, least accurate
-# - base: Good balance (recommended)
-# - small: Better accuracy, slower
-# - medium: High accuracy, much slower
-# - large: Best accuracy, very slow
+# Available Models:
+# - tiny: ~1GB RAM, 32x faster, 70% accuracy - Best for testing
+# - base: ~1GB RAM, 16x faster, 80% accuracy - Recommended (default)
+# - small: ~2GB RAM, 6x faster, 85% accuracy - Good balance
+# - medium: ~5GB RAM, 2x faster, 90% accuracy - High accuracy
+# - large: ~10GB RAM, 1x speed, 95% accuracy - Best quality (very slow)
+
+# Processing Time Examples (5-minute video):
+# - tiny: ~30 seconds
+# - base: ~1 minute (default)
+# - small: ~2-3 minutes
+# - medium: ~5-8 minutes
+# - large: ~15-20 minutes
+
+# First run downloads model (~40MB for tiny, ~140MB for base, ~460MB for small)
 ```
+
+**Recommendation**: Use `base` for production, `tiny` for development/testing.
 
 ### Video Quality Settings
 
-Edit `server/video_processor.py`:
+The quality selection affects the **source video download quality**. Clips inherit the quality of the source video.
+
+**How it works:**
+1. **Download Stage** - Quality parameter controls yt-dlp download resolution
+   - 2160p (4K) → Downloads 4K video → Clips are 4K
+   - 720p (HD) → Downloads 720p video → Clips are 720p
+   - 360p → Downloads 360p video → Clips are 360p
+
+2. **Clip Creation** - FFmpeg uses optimized encoding settings (defined in `server/video_processor.py`):
 
 ```python
-# CRF: 0-51 (lower = better quality, larger file)
-'-crf', '23',  # Default: 23 (good quality)
-
-# Preset: Speed vs compression
-'-preset', 'fast',  # Options: ultrafast, fast, medium, slow
+# FFmpeg encoding settings for clips
+'-c:v', 'libx264',      # H.264 codec
+'-c:a', 'aac',          # AAC audio codec
+'-preset', 'fast',      # Encoding speed (ultrafast, fast, medium, slow)
+'-crf', '23',           # Quality: 0-51 (lower = better quality, larger file)
+                        # 23 = good balance between quality and file size
+'-avoid_negative_ts', 'make_zero'  # Fix timestamp issues
 ```
+
+**To customize clip encoding quality**, edit `server/video_processor.py` line 352-356:
+- Lower CRF (18-22) = Higher quality, larger files
+- Higher CRF (24-28) = Lower quality, smaller files
+- Faster preset = Quicker processing, larger files
+- Slower preset = Better compression, smaller files
 
 ### Clip Generation Settings
 
@@ -567,13 +817,23 @@ Adjust in the frontend or API request:
 
 ```javascript
 {
-  clipDuration: 45,        // Seconds per clip
-  numClips: 5,             // Number of clips to generate
+  clipDuration: 45,        // Seconds per clip (15-90s)
+  numClips: 5,             // Number of clips to generate (1-10)
   minViralScore: 0.5,      // Minimum viral score (0-1)
-  quality: '720p',         // Output quality
-  emotions: ['joy', 'excitement']  // Filter by emotions
+  quality: '720p',         // Source video download quality (affects clip quality)
+  emotions: ['joy', 'excitement'],  // Filter by emotions
+  clipMode: 'ai',          // 'ai' (smart), 'divide' (equal parts), 'range' (custom time)
+  startTime: 0,            // Optional: start processing from this time (seconds)
+  endTime: 300,            // Optional: end processing at this time (seconds)
+  skipSubtitles: false,    // Skip subtitle generation for faster processing
+  subtitleLanguage: 'auto' // Auto-detect or specify language code (en, es, fr, etc.)
 }
 ```
+
+**Processing Modes:**
+- **AI Mode** - Gemini AI analyzes content and identifies viral moments
+- **Divide Mode** - Splits video into equal-duration clips
+- **Range Mode** - Creates clips from specific time ranges
 
 ---
 
@@ -685,7 +945,45 @@ Content-Type: application/json
   "userId": "uuid",
   "clipDuration": 45,
   "numClips": 5,
-  "quality": "720p"
+  "quality": "720p",
+  "clipMode": "ai",
+  "minViralScore": 0.5,
+  "emotions": ["joy", "excitement"],
+  "skipSubtitles": false,
+  "subtitleLanguage": "auto",
+  "startTime": 0,
+  "endTime": 300
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "videoId": "uuid",
+  "status": "completed",
+  "videoInfo": {
+    "duration": 300,
+    "width": 1280,
+    "height": 720,
+    "fps": 30
+  },
+  "detectedLanguage": "en",
+  "subtitleUrl": "http://localhost:5001/video/uuid.vtt",
+  "thumbnailUrl": "http://localhost:5001/video/uuid_thumb.jpg",
+  "clips": [
+    {
+      "clipNumber": 1,
+      "title": "Amazing Moment",
+      "startTime": 45.5,
+      "endTime": 90.5,
+      "duration": 45,
+      "emotion": "joy",
+      "viralScore": 0.85,
+      "reason": "High energy and engaging content",
+      "clipUrl": "http://localhost:5001/video/uuid_clip_1.mp4"
+    }
+  ]
 }
 ```
 
@@ -763,20 +1061,40 @@ kill -9 <PID>
 ### Performance Optimization
 
 #### Slow Processing
-- Use smaller Whisper model (`tiny` or `base`)
-- Reduce video quality
-- Process shorter videos
-- Increase server resources
+- Use smaller Whisper model (`tiny` instead of `base`) in `video_processor.py` line 27
+- Enable "Skip Subtitles" mode for 50% faster processing (no subtitle generation)
+- Download source video at lower quality (720p or 480p)
+- Process shorter videos (under 10 minutes recommended)
+- Use faster FFmpeg preset (`ultrafast` or `veryfast`)
+- Increase server resources (RAM and CPU)
+- First run is always slower (Whisper model download ~140MB)
 
 #### Large File Sizes
-- Adjust CRF value (higher = smaller files)
-- Use faster preset
-- Lower output resolution
+- Download source video at lower quality (480p or 360p instead of 1080p/4K)
+- Adjust CRF value in `video_processor.py` (increase from 23 to 26-28 for smaller files)
+- Use faster preset (`ultrafast` instead of `fast`) for quicker encoding
+- Enable Cloudinary storage to automatically delete local files after upload
 
 #### Memory Issues
 - Close other applications
 - Increase Node.js memory: `NODE_OPTIONS=--max-old-space-size=4096`
 - Process videos sequentially, not in parallel
+
+#### File Upload Issues
+**Error**: `File too large` or `Invalid file type`
+
+**Solution**:
+1. Check file size (default max: 500MB)
+2. Verify file format (supported: MP4, MOV, AVI, MKV, WEBM)
+3. Adjust limits in `.env`:
+   ```env
+   MAX_FILE_SIZE=500  # in MB
+   ALLOWED_EXTENSIONS=mp4,mov,avi,mkv,webm
+   ```
+4. For larger files:
+   - Compress video before upload
+   - Use YouTube download instead
+   - Enable Cloudinary for better handling
 
 ---
 
