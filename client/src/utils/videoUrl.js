@@ -5,6 +5,7 @@
  * - Cloud URL: https://res.cloudinary.com/...
  * - Full URL: http://localhost:5001/video/file.mp4
  * - Relative path: downloads/file.mp4 or downloads\file.mp4 (Windows)
+ * - Clips path: downloads/clips/file.mp4
  * - Just filename: file.mp4
  */
 export function getVideoUrl(filePath, cloudUrl = null) {
@@ -26,11 +27,11 @@ export function getVideoUrl(filePath, cloudUrl = null) {
   // Normalize path separators (Windows backslashes to forward slashes)
   let filename = filePath.replace(/\\/g, '/');
   
-  // Remove 'downloads/' prefix if present - Flask serves from downloads folder
-  // Handle multiple 'downloads/' prefixes (e.g., 'downloads/downloads/file.mp4')
-  while (filename.startsWith('downloads/')) {
-    filename = filename.substring('downloads/'.length);
-  }
+  // Remove 'downloads/' and 'downloads/clips/' prefixes if present
+  // Flask serves from downloads folder, so we need just the filename
+  filename = filename.replace(/^downloads\/clips\//, '');
+  filename = filename.replace(/^downloads\//, '');
+  filename = filename.replace(/^clips\//, '');
 
   // Construct Flask server URL - use localhost instead of 127.0.0.1 for consistency
   const videoUrl = `http://localhost:5001/video/${filename}`;

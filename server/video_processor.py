@@ -145,12 +145,34 @@ class VideoProcessor:
         num_clips = options.get('num_clips', 5)
         min_viral_score = options.get('min_viral_score', 0.5)
         clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', or 'range'
+        video_metadata = options.get('video_metadata', {})
         
         # If mode is divide or range, use fallback analysis
         if clip_mode in ['divide', 'range']:
             return self._fallback_analysis(transcript, options)
         
         print("Analyzing video with Gemini AI...")
+        
+        # Extract video context
+        video_title = video_metadata.get('title', '')
+        video_description = video_metadata.get('description', '')
+        video_tags = video_metadata.get('tags', [])
+        video_categories = video_metadata.get('categories', [])
+        
+        # Build context string
+        context_parts = []
+        if video_title:
+            context_parts.append(f"Video Title: {video_title}")
+        if video_description:
+            # Limit description to first 500 chars
+            desc = video_description[:500] + "..." if len(video_description) > 500 else video_description
+            context_parts.append(f"Description: {desc}")
+        if video_tags:
+            context_parts.append(f"Tags: {', '.join(video_tags[:10])}")
+        if video_categories:
+            context_parts.append(f"Categories: {', '.join(video_categories)}")
+        
+        video_context = "\n".join(context_parts) if context_parts else "No video metadata available"
         
         try:
             # Use the model specified in environment or default
@@ -161,19 +183,24 @@ class VideoProcessor:
             prompt = f"""
 Analyze this video transcript and identify the top {num_clips} most viral-worthy moments for short-form content.
 
+VIDEO CONTEXT:
+{video_context}
+
 IMPORTANT REQUIREMENTS:
 1. Each clip MUST be EXACTLY {clip_duration} seconds long
 2. Calculate end_time as: start_time + {clip_duration}
-3. ALWAYS generate a catchy, engaging title for each clip (NOT generic like "Part 1" or "Clip 1")
-4. Titles should be attention-grabbing and describe what makes the moment interesting
+3. Generate titles that are RELEVANT to the actual video content and context above
+4. Titles should match the video's theme, mood, and genre (e.g., if it's a song, use music-related titles; if it's comedy, use funny titles; if it's educational, use informative titles)
+5. DO NOT use generic clickbait titles that don't relate to the video content
+6. Consider the video title, description, and tags when creating clip titles
 
 For each moment, provide:
 1. Start time (in seconds)
 2. End time (in seconds) - MUST be exactly start_time + {clip_duration}
-3. Emotion/vibe (joy, excitement, surprise, inspiration, humor, tension, etc.)
+3. Emotion/vibe (joy, excitement, surprise, inspiration, humor, tension, romantic, sad, energetic, etc.)
 4. Viral score (0 to 100) - must be at least {min_viral_score * 100} (as percentage)
 5. Why it's viral-worthy (brief explanation)
-6. Catchy title for the clip (e.g., "You Won't Believe This!", "The Moment Everything Changed", "Wait For It...")
+6. Contextual title for the clip that reflects the actual video content and theme
 
 Transcript:
 {json.dumps(transcript['segments'][:50], indent=2)}
@@ -187,7 +214,7 @@ Respond in JSON format:
       "emotion": "excitement",
       "viral_score": 92,
       "reason": "High energy moment with surprising revelation",
-      "title": "You Won't Believe What Happened Next!"
+      "title": "[Title that matches the video's actual content and theme]"
     }}
   ]
 }}
@@ -195,7 +222,8 @@ Respond in JSON format:
 Remember: 
 - end_time MUST equal start_time + {clip_duration} seconds!
 - viral_score should be 0-100 (percentage)
-- Titles MUST be engaging and specific, NOT generic like "Part 1" or "Clip 1"
+- Titles MUST be relevant to the video's actual content, theme, and genre
+- Use the video context provided above to create appropriate titles
 """
             
             response = model.generate_content(prompt)

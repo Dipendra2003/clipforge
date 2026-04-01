@@ -131,8 +131,25 @@ function DashboardOverview() {
       if (response.ok) {
         const data = await response.json();
         if (data.clips && data.clips.length > 0) {
-          setGeneratedClips(data.clips);
-          setShowClips(true);
+          // Filter out clips that don't have cloud URLs (old clips with deleted local files)
+          const validClips = data.clips.filter(clip => {
+            // Keep clip if it has a cloud URL
+            if (clip.cloud_url || clip.cloudUrl) {
+              return true;
+            }
+            // Or if it has a file path that looks valid (not in clips subfolder which gets deleted)
+            if (clip.file_path && !clip.file_path.includes('/clips/') && !clip.file_path.includes('\\clips\\')) {
+              return true;
+            }
+            // Otherwise skip this clip (it's likely deleted)
+            console.log('⚠️ Skipping clip without valid URL:', clip.title);
+            return false;
+          });
+          
+          if (validClips.length > 0) {
+            setGeneratedClips(validClips);
+            setShowClips(true);
+          }
         }
         // Reload stats to update clip count
         loadStats();

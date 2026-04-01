@@ -108,6 +108,19 @@ def download_video():
         subtitle_path = os.path.join(DOWNLOAD_FOLDER, f"{file_id}.en.vtt")
         has_subtitles = os.path.exists(subtitle_path)
         
+        # Save video metadata to a JSON file for later use in processing
+        metadata = {
+            'title': info.get('title', 'Downloaded Video'),
+            'description': info.get('description', ''),
+            'duration': info.get('duration', 0),
+            'uploader': info.get('uploader', ''),
+            'categories': info.get('categories', []),
+            'tags': info.get('tags', [])
+        }
+        metadata_path = os.path.join(DOWNLOAD_FOLDER, f"{file_id}_metadata.json")
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+        
         response_data = {
             "videoUrl": f"http://127.0.0.1:5001/video/{file_id}.mp4",
             "title": info.get('title', 'Downloaded Video'),
@@ -283,8 +296,20 @@ def process_video():
     try:
         print(f"Processing video: {video_id}")
         
+        # Load video metadata if available
+        metadata_path = os.path.join(DOWNLOAD_FOLDER, f"{video_id}_metadata.json")
+        video_metadata = None
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                video_metadata = json.load(f)
+                print(f"📹 Video Title: {video_metadata.get('title', 'Unknown')}")
+        
         # Initialize processor
         processor = VideoProcessor(video_path, DOWNLOAD_FOLDER)
+        
+        # Add metadata to options
+        if video_metadata:
+            options['video_metadata'] = video_metadata
         
         # Create a callback function to update progress
         def progress_callback(progress, step):
@@ -325,7 +350,11 @@ def process_video():
             "videoId": video_id,
             "userId": user_id,
             "status": results['status'],
-            "videoInfo": results.get('video_info', {}),
+            "videoInfo": {
+                **results.get('video_info', {}),
+                'title': video_metadata.get('title') if video_metadata else None,
+                'description': video_metadata.get('description') if video_metadata else None
+            },
             "detectedLanguage": results.get('detected_language', 'unknown'),
             "subtitleUrl": f"http://127.0.0.1:5001/video/{video_id}.vtt" if results.get('subtitle_path') else None,
             "thumbnailUrl": results.get('thumbnail_cloud_url') or (f"http://127.0.0.1:5001/video/{video_id}_thumb.jpg" if results.get('thumbnail_path') else None),

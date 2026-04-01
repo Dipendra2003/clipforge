@@ -57,10 +57,13 @@ router.post('/save-processed', async (req, res) => {
       thumbnailCloudUrl
     });
 
+    // Extract title from videoInfo or use generic fallback
+    const videoTitle = videoInfo?.title || videoInfo?.name || `Video ${videoId}`;
+
     // Save video to database
     const video = await Video.create({
       userId: userId,
-      title: `Video ${videoId}`,
+      title: videoTitle,
       sourceType: 'youtube',
       filePath: `downloads/${videoId}.mp4`,
       thumbnailPath: thumbnailUrl ? `downloads/${videoId}_thumb.jpg` : null,
@@ -269,8 +272,24 @@ router.get('/my-videos', authenticate, async (req, res) => {
     const videos = await Video.findByUserId(req.user.id, parseInt(limit), parseInt(offset));
     const total = await Video.countByUserId(req.user.id);
 
+    // Enhance videos with metadata titles if they have generic titles
+    const enhancedVideos = videos.map(video => {
+      // Check if video has a generic title pattern (starts with "Video " followed by UUID)
+      if (video.title && video.title.startsWith('Video ') && video.title.length > 40) {
+        // Try to get title from metadata
+        if (video.metadata && video.metadata.title) {
+          return {
+            ...video,
+            title: video.metadata.title,
+            originalTitle: video.title // Keep original for reference
+          };
+        }
+      }
+      return video;
+    });
+
     res.json({
-      videos,
+      videos: enhancedVideos,
       total,
       limit: parseInt(limit),
       offset: parseInt(offset)
@@ -304,8 +323,20 @@ router.get('/:videoId', authenticate, async (req, res) => {
       clipUrl: clip.cloud_url || `http://127.0.0.1:5001/video/clips/${clip.file_path.split('/').pop()}`
     }));
 
+    // Enhance video with metadata title if it has a generic title
+    let enhancedVideo = video;
+    if (video.title && video.title.startsWith('Video ') && video.title.length > 40) {
+      if (video.metadata && video.metadata.title) {
+        enhancedVideo = {
+          ...video,
+          title: video.metadata.title,
+          originalTitle: video.title
+        };
+      }
+    }
+
     res.json({
-      video,
+      video: enhancedVideo,
       clips: transformedClips
     });
   } catch (error) {
