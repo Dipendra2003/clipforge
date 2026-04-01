@@ -46,7 +46,7 @@ const upload = multer({
 // Save processed video and clips from Flask
 router.post('/save-processed', async (req, res) => {
   try {
-    const { videoId, userId, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl } = req.body;
+    const { videoId, userId, sourceUrl, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
@@ -54,17 +54,37 @@ router.post('/save-processed', async (req, res) => {
 
     console.log('💾 Saving video with thumbnail:', {
       thumbnailUrl,
-      thumbnailCloudUrl
+      thumbnailCloudUrl,
+      sourceUrl
     });
 
     // Extract title from videoInfo or use generic fallback
     const videoTitle = videoInfo?.title || videoInfo?.name || `Video ${videoId}`;
 
+    // Determine source type based on URL
+    let sourceType = 'upload';
+    if (sourceUrl) {
+      if (sourceUrl.includes('youtube.com') || sourceUrl.includes('youtu.be')) {
+        sourceType = 'youtube';
+      } else if (sourceUrl.includes('facebook.com') || sourceUrl.includes('fb.watch')) {
+        sourceType = 'facebook';
+      } else if (sourceUrl.includes('instagram.com')) {
+        sourceType = 'instagram';
+      } else if (sourceUrl.includes('tiktok.com')) {
+        sourceType = 'tiktok';
+      } else if (sourceUrl.includes('twitter.com') || sourceUrl.includes('x.com')) {
+        sourceType = 'twitter';
+      } else {
+        sourceType = 'url';
+      }
+    }
+
     // Save video to database
     const video = await Video.create({
       userId: userId,
       title: videoTitle,
-      sourceType: 'youtube',
+      sourceType: sourceType,
+      sourceUrl: sourceUrl || null,
       filePath: `downloads/${videoId}.mp4`,
       thumbnailPath: thumbnailUrl ? `downloads/${videoId}_thumb.jpg` : null,
       thumbnailCloudUrl: thumbnailCloudUrl || null,

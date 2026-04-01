@@ -87,3 +87,117 @@ export function downloadFile(url, filename, onSuccess, onError) {
       if (onError) onError(error);
     });
 }
+
+/**
+ * Detect platform from source URL
+ * @param {string} sourceUrl - The source URL of the video
+ * @returns {object} Platform info with name, icon, and color
+ */
+export function detectPlatform(sourceUrl) {
+  if (!sourceUrl) {
+    return {
+      name: 'Upload',
+      icon: '📤',
+      color: 'blue'
+    };
+  }
+
+  const url = sourceUrl.toLowerCase();
+
+  // YouTube
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    return {
+      name: 'YouTube',
+      icon: '▶️',
+      color: 'red'
+    };
+  }
+
+  // Facebook
+  if (url.includes('facebook.com') || url.includes('fb.com') || url.includes('fb.watch')) {
+    return {
+      name: 'Facebook',
+      icon: '📘',
+      color: 'blue'
+    };
+  }
+
+  // Instagram
+  if (url.includes('instagram.com') || url.includes('instagr.am')) {
+    return {
+      name: 'Instagram',
+      icon: '📷',
+      color: 'pink'
+    };
+  }
+
+  // TikTok
+  if (url.includes('tiktok.com')) {
+    return {
+      name: 'TikTok',
+      icon: '🎵',
+      color: 'black'
+    };
+  }
+
+  // Twitter/X
+  if (url.includes('twitter.com') || url.includes('x.com') || url.includes('t.co')) {
+    return {
+      name: 'Twitter',
+      icon: '🐦',
+      color: 'sky'
+    };
+  }
+
+  // Vimeo
+  if (url.includes('vimeo.com')) {
+    return {
+      name: 'Vimeo',
+      icon: '🎬',
+      color: 'cyan'
+    };
+  }
+
+  // Twitch
+  if (url.includes('twitch.tv')) {
+    return {
+      name: 'Twitch',
+      icon: '🎮',
+      color: 'purple'
+    };
+  }
+
+  // LinkedIn
+  if (url.includes('linkedin.com')) {
+    return {
+      name: 'LinkedIn',
+      icon: '💼',
+      color: 'blue'
+    };
+  }
+
+  // Dailymotion
+  if (url.includes('dailymotion.com')) {
+    return {
+      name: 'Dailymotion',
+      icon: '🎥',
+      color: 'blue'
+    };
+  }
+
+  // Reddit
+  if (url.includes('reddit.com') || url.includes('redd.it')) {
+    return {
+      name: 'Reddit',
+      icon: '🤖',
+      color: 'orange'
+    };
+  }
+
+  // Default for unknown URLs
+  return {
+    name: 'Web',
+    icon: '🔗',
+    color: 'gray'
+  };
+}

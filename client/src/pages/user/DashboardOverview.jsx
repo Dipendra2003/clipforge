@@ -400,6 +400,7 @@ function DashboardOverview() {
           body: JSON.stringify({
             videoId: extractedVideoId,
             userId: userId,
+            sourceUrl: youtubeUrl || null,
             videoInfo: processData.videoInfo || {},
             clips: processData.clips,
             subtitleUrl: processData.subtitleUrl,
@@ -607,6 +608,7 @@ function DashboardOverview() {
           body: JSON.stringify({
             videoId: processVideoId,
             userId: userId,
+            sourceUrl: null, // File upload has no source URL
             videoInfo: processData.videoInfo || {},
             clips: processData.clips,
             subtitleUrl: processData.subtitleUrl,
