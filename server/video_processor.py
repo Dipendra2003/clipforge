@@ -147,8 +147,9 @@ class VideoProcessor:
         clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', or 'range'
         video_metadata = options.get('video_metadata', {})
         
-        # If mode is divide or range, use fallback analysis
-        if clip_mode in ['divide', 'range']:
+        # If mode is divide, use fallback analysis (equal division doesn't need AI)
+        # But for 'range' mode, we still want AI to find best moments within the range
+        if clip_mode == 'divide':
             return self._fallback_analysis(transcript, options)
         
         print("Analyzing video with Gemini AI...")

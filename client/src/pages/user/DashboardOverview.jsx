@@ -25,7 +25,7 @@ function DashboardOverview() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [clipMode, setClipMode] = useState('ai');
   const [clipDuration, setClipDuration] = useState(45);
-  const [numClips, setNumClips] = useState(5);
+  const [numClips, setNumClips] = useState(3);
   const [videoQuality, setVideoQuality] = useState('720p');
   const [subtitleLanguage, setSubtitleLanguage] = useState('auto');
   const [startMinutes, setStartMinutes] = useState(0);
@@ -228,19 +228,19 @@ function DashboardOverview() {
     e.preventDefault();
     
     if (!youtubeUrl) {
-      toast.error('Please enter a YouTube URL');
+      toast.error('Please enter a video URL');
       return;
     }
 
-    // Basic YouTube URL validation
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-    if (!youtubeRegex.test(youtubeUrl)) {
-      toast.error('Please enter a valid YouTube URL');
+    // Basic URL validation - accept any valid URL since yt-dlp supports 1000+ sites
+    const urlRegex = /^(https?:\/\/)?(www\.)?[\w-]+(\.[\w-]+)+.*$/;
+    if (!urlRegex.test(youtubeUrl)) {
+      toast.error('Please enter a valid video URL');
       return;
     }
 
     setProcessing(true);
-    setProcessingStep('Downloading video from YouTube...');
+    setProcessingStep('Downloading video...');
     setProcessingProgress(0);
     
     let downloadProgressInterval = null;
@@ -255,7 +255,7 @@ function DashboardOverview() {
     }, 1200);
     
     try {
-      toast.info('📥 Downloading video from YouTube...');
+      toast.info('📥 Downloading video...');
       
       const downloadResponse = await fetch('http://localhost:5001/download', {
         method: 'POST',
@@ -412,18 +412,21 @@ function DashboardOverview() {
         if (saveResponse.ok) {
           console.log('✅ Clips saved to database');
           toast.success('Clips saved successfully!');
-          // Reload clips from database to get proper IDs
+          // Reload clips from database to get proper IDs and show them
           await loadRecentClips();
         } else {
           console.warn('⚠️ Failed to save to database');
+          // If save failed, show the clips from processing response
+          setGeneratedClips(processData.clips);
+          setShowClips(true);
         }
       } catch (saveError) {
         console.error('Database save error:', saveError);
+        // On error, show the clips from processing response
+        setGeneratedClips(processData.clips);
+        setShowClips(true);
       }
       
-      // Also show the newly generated clips immediately
-      setGeneratedClips(processData.clips);
-      setShowClips(true);
       setYoutubeUrl('');
       
       // Scroll to clips
@@ -616,18 +619,20 @@ function DashboardOverview() {
         if (saveResponse.ok) {
           console.log('✅ Clips saved to database');
           toast.success('Clips saved successfully!');
-          // Reload clips from database to get proper IDs
+          // Reload clips from database to get proper IDs and show them
           await loadRecentClips();
         } else {
           console.warn('⚠️ Failed to save to database');
+          // If save failed, show the clips from processing response
+          setGeneratedClips(processData.clips);
+          setShowClips(true);
         }
       } catch (saveError) {
         console.error('Database save error:', saveError);
+        // On error, show the clips from processing response
+        setGeneratedClips(processData.clips);
+        setShowClips(true);
       }
-      
-      // Also show the newly generated clips immediately
-      setGeneratedClips(processData.clips);
-      setShowClips(true);
       
       // Scroll to clips
       setTimeout(() => {
@@ -700,7 +705,7 @@ function DashboardOverview() {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            YouTube Link
+            Video URL
           </button>
         </div>
 
@@ -826,21 +831,28 @@ function DashboardOverview() {
                         <>
                           <div>
                             <label className="block text-sm font-semibold text-gray-900 mb-2">
-                              ⏱️ Clip Duration: {clipDuration} seconds
+                              ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}
                             </label>
                             <input
                               type="range"
-                              min="15"
-                              max="90"
-                              step="15"
+                              min="30"
+                              max="300"
+                              step="30"
                               value={clipDuration}
                               onChange={(e) => setClipDuration(parseInt(e.target.value))}
                               className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                             />
                             <div className="flex justify-between text-xs text-gray-600 mt-1">
-                              <span>15s (Short)</span>
-                              <span>45s (Medium)</span>
-                              <span>90s (Long)</span>
+                              <span>30s</span>
+                              <span>1m</span>
+                              <span>1m30s</span>
+                              <span>2m</span>
+                              <span>2m30s</span>
+                              <span>3m</span>
+                              <span>3m30s</span>
+                              <span>4m</span>
+                              <span>4m30s</span>
+                              <span>5m</span>
                             </div>
                           </div>
 
@@ -858,9 +870,16 @@ function DashboardOverview() {
                               className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                             />
                             <div className="flex justify-between text-xs text-gray-600 mt-1">
-                              <span>1 clip</span>
-                              <span>5 clips</span>
-                              <span>10 clips</span>
+                              <span>1</span>
+                              <span>2</span>
+                              <span>3</span>
+                              <span>4</span>
+                              <span>5</span>
+                              <span>6</span>
+                              <span>7</span>
+                              <span>8</span>
+                              <span>9</span>
+                              <span>10</span>
                             </div>
                           </div>
                         </>
@@ -965,17 +984,29 @@ function DashboardOverview() {
 
                           <div>
                             <label className="block text-sm font-semibold text-gray-900 mb-2">
-                              ⏱️ Clip Duration: {clipDuration} seconds
+                              ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}
                             </label>
                             <input
                               type="range"
-                              min="15"
-                              max="90"
-                              step="15"
+                              min="30"
+                              max="300"
+                              step="30"
                               value={clipDuration}
                               onChange={(e) => setClipDuration(parseInt(e.target.value))}
                               className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                             />
+                            <div className="flex justify-between text-xs text-gray-600 mt-1">
+                              <span>30s</span>
+                              <span>1m</span>
+                              <span>1m30s</span>
+                              <span>2m</span>
+                              <span>2m30s</span>
+                              <span>3m</span>
+                              <span>3m30s</span>
+                              <span>4m</span>
+                              <span>4m30s</span>
+                              <span>5m</span>
+                            </div>
                           </div>
 
                           <div>
@@ -991,6 +1022,18 @@ function DashboardOverview() {
                               onChange={(e) => setNumClips(parseInt(e.target.value))}
                               className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                             />
+                            <div className="flex justify-between text-xs text-gray-600 mt-1">
+                              <span>1</span>
+                              <span>2</span>
+                              <span>3</span>
+                              <span>4</span>
+                              <span>5</span>
+                              <span>6</span>
+                              <span>7</span>
+                              <span>8</span>
+                              <span>9</span>
+                              <span>10</span>
+                            </div>
                           </div>
 
                           <p className="text-xs text-orange-700 p-2 bg-orange-100 rounded">
@@ -1158,10 +1201,13 @@ function DashboardOverview() {
             <div className="text-center mb-6">
               <div className="text-6xl mb-4">🔗</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Paste YouTube Video URL
+                Paste Video URL
               </h3>
               <p className="text-gray-500">
                 We'll download and process the video for you
+              </p>
+              <p className="text-xs text-purple-600 mt-2">
+                ✨ Supports YouTube, Instagram, Facebook, TikTok, Twitter, Vimeo & 1000+ sites
               </p>
             </div>
 
@@ -1271,21 +1317,28 @@ function DashboardOverview() {
                     <>
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          ⏱️ Clip Duration: {clipDuration} seconds
+                          ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}
                         </label>
                         <input
                           type="range"
-                          min="15"
-                          max="90"
-                          step="15"
+                          min="30"
+                          max="300"
+                          step="30"
                           value={clipDuration}
                           onChange={(e) => setClipDuration(parseInt(e.target.value))}
                           className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                         />
                         <div className="flex justify-between text-xs text-gray-600 mt-1">
-                          <span>15s</span>
-                          <span>45s</span>
-                          <span>90s</span>
+                          <span>30s</span>
+                          <span>1m</span>
+                          <span>1m30s</span>
+                          <span>2m</span>
+                          <span>2m30s</span>
+                          <span>3m</span>
+                          <span>3m30s</span>
+                          <span>4m</span>
+                          <span>4m30s</span>
+                          <span>5m</span>
                         </div>
                       </div>
 
@@ -1304,7 +1357,14 @@ function DashboardOverview() {
                         />
                         <div className="flex justify-between text-xs text-gray-600 mt-1">
                           <span>1</span>
+                          <span>2</span>
+                          <span>3</span>
+                          <span>4</span>
                           <span>5</span>
+                          <span>6</span>
+                          <span>7</span>
+                          <span>8</span>
+                          <span>9</span>
                           <span>10</span>
                         </div>
                       </div>
@@ -1408,17 +1468,29 @@ function DashboardOverview() {
 
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">
-                          ⏱️ Clip Duration: {clipDuration} seconds
+                          ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}
                         </label>
                         <input
                           type="range"
-                          min="15"
-                          max="90"
-                          step="15"
+                          min="30"
+                          max="300"
+                          step="30"
                           value={clipDuration}
                           onChange={(e) => setClipDuration(parseInt(e.target.value))}
                           className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                         />
+                        <div className="flex justify-between text-xs text-gray-600 mt-1">
+                          <span>30s</span>
+                          <span>1m</span>
+                          <span>1m30s</span>
+                          <span>2m</span>
+                          <span>2m30s</span>
+                          <span>3m</span>
+                          <span>3m30s</span>
+                          <span>4m</span>
+                          <span>4m30s</span>
+                          <span>5m</span>
+                        </div>
                       </div>
 
                       <div>
@@ -1434,6 +1506,18 @@ function DashboardOverview() {
                           onChange={(e) => setNumClips(parseInt(e.target.value))}
                           className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                         />
+                        <div className="flex justify-between text-xs text-gray-600 mt-1">
+                          <span>1</span>
+                          <span>2</span>
+                          <span>3</span>
+                          <span>4</span>
+                          <span>5</span>
+                          <span>6</span>
+                          <span>7</span>
+                          <span>8</span>
+                          <span>9</span>
+                          <span>10</span>
+                        </div>
                       </div>
 
                       <p className="text-xs text-orange-700 p-2 bg-orange-100 rounded">
@@ -1511,7 +1595,7 @@ function DashboardOverview() {
                 required
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://www.youtube.com/watch?v=... or any video URL"
                 disabled={processing}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none"
               />
@@ -1617,13 +1701,13 @@ function DashboardOverview() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-gray-700">Viral Score</span>
                       <span className="text-sm font-bold text-purple-600">
-                        {Number(clip.viral_score || 0).toFixed(0)}%
+                        {Number(clip.viralScore || clip.viral_score || 0).toFixed(0)}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 h-2 rounded-full"
-                        style={{ width: `${Number(clip.viral_score || 0)}%` }}
+                        style={{ width: `${Number(clip.viralScore || clip.viral_score || 0)}%` }}
                       ></div>
                     </div>
                   </div>

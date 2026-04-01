@@ -58,17 +58,31 @@ def download_video():
     file_id = str(uuid.uuid4())
     output = os.path.join(DOWNLOAD_FOLDER, file_id)
 
-    # Map quality to yt-dlp format string
-    quality_map = {
-        "2160p": "best[height<=2160]",
-        "1440p": "best[height<=1440]",
-        "1080p": "best[height<=1080]",
-        "720p": "best[height<=720]",
-        "480p": "best[height<=480]",
-        "360p": "best[height<=360]"
-    }
+    # Detect platform for format selection
+    is_instagram = 'instagram.com' in url.lower()
+    is_tiktok = 'tiktok.com' in url.lower()
+    is_facebook = 'facebook.com' in url.lower() or 'fb.watch' in url.lower()
     
-    format_string = quality_map.get(quality, "best[height<=720]")
+    # Map quality to yt-dlp format string
+    if is_instagram:
+        # Instagram: try multiple format options as fallback
+        format_string = "best[ext=mp4]/best/bestvideo+bestaudio/bestvideo"
+    elif is_tiktok:
+        # TikTok: use best available format
+        format_string = "best"
+    elif is_facebook:
+        # Facebook: try multiple format options as fallback
+        format_string = "best[ext=mp4]/best/bestvideo+bestaudio/bestvideo"
+    else:
+        quality_map = {
+            "2160p": "best[height<=2160]",
+            "1440p": "best[height<=1440]",
+            "1080p": "best[height<=1080]",
+            "720p": "best[height<=720]",
+            "480p": "best[height<=480]",
+            "360p": "best[height<=360]"
+        }
+        format_string = quality_map.get(quality, "best[height<=720]")
 
     ydl_opts = {
         "outtmpl": f"{output}.%(ext)s",
@@ -87,6 +101,12 @@ def download_video():
             "youtube": {
                 "player_client": ["android", "web"],
                 "skip": ["hls", "dash"]
+            },
+            "instagram": {
+                "api": ["graphql"]  # Use GraphQL API for Instagram
+            },
+            "facebook": {
+                "api": ["graphql"]  # Use GraphQL API for Facebook
             }
         },
     }
@@ -95,7 +115,33 @@ def download_video():
         print(f"Attempting to download: {url}")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extract info first to check if video is available
-            info = ydl.extract_info(url, download=False)
+            try:
+                info = ydl.extract_info(url, download=False)
+                
+                if not info:
+                    return jsonify({"error": "Could not extract video information"}), 400
+                    
+            except Exception as extract_error:
+                error_str = str(extract_error)
+                print(f"Info extraction failed: {error_str}")
+                
+                # Check if it's a format error (common with Instagram)
+                if "Requested format is not available" in error_str:
+                    return jsonify({
+                        "error": "Video format not available",
+                        "details": "This Instagram video may be private, have restricted access, or the format is not supported. Try a different video or use 'best' quality."
+                    }), 400
+                elif "Private video" in error_str or "login" in error_str.lower():
+                    return jsonify({
+                        "error": "Private or restricted video",
+                        "details": "This video requires authentication or is private. Please use a public video."
+                    }), 403
+                else:
+                    return jsonify({
+                        "error": "Failed to extract video information",
+                        "details": error_str
+                    }), 400
+                
             print(f"Video title: {info.get('title', 'Unknown')}")
             print(f"Duration: {info.get('duration', 0)} seconds")
             

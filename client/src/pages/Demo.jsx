@@ -760,16 +760,18 @@ function Demo() {
                                 <input
                                   type="range"
                                   min="15"
-                                  max="90"
+                                  max="300"
                                   step="15"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>15s (Short)</span>
-                                  <span>45s (Medium)</span>
-                                  <span>90s (Long)</span>
+                                  <span>15s</span>
+                                  <span>45s</span>
+                                  <span>90s</span>
+                                  <span>180s</span>
+                                  <span>300s (5min)</span>
                                 </div>
                               </div>
 
@@ -899,7 +901,7 @@ function Demo() {
                                 <input
                                   type="range"
                                   min="15"
-                                  max="90"
+                                  max="300"
                                   step="15"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
@@ -1257,16 +1259,18 @@ function Demo() {
                                 <input
                                   type="range"
                                   min="15"
-                                  max="90"
+                                  max="300"
                                   step="15"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>15s (Short)</span>
-                                  <span>45s (Medium)</span>
-                                  <span>90s (Long)</span>
+                                  <span>15s</span>
+                                  <span>45s</span>
+                                  <span>90s</span>
+                                  <span>180s</span>
+                                  <span>300s (5min)</span>
                                 </div>
                               </div>
 
@@ -1396,7 +1400,7 @@ function Demo() {
                                 <input
                                   type="range"
                                   min="15"
-                                  max="90"
+                                  max="300"
                                   step="15"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
@@ -1790,3 +1794,4 @@ function Demo() {
 }
 
 export default Demo;
+
