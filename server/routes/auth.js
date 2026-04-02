@@ -10,20 +10,20 @@ const router = express.Router();
 // Rate limiters
 const authLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+  max: process.env.NODE_ENV === 'production' ? 5 : 20, // 20 for dev, 5 for production
   message: 'Too many authentication attempts, please try again later',
   skipSuccessfulRequests: false
 });
 
 const strictAuthLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 requests per hour
+  max: process.env.NODE_ENV === 'production' ? 3 : 15, // 15 for dev, 3 for production
   message: 'Too many attempts, please try again after an hour'
 });
 
 const generalLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 1000 // Increased for development
+  max: 1000 // High limit for general endpoints
 });
 
 // CSRF token endpoint

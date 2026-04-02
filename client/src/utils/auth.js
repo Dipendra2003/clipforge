@@ -138,8 +138,12 @@ axios.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't tried to refresh yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't try to refresh token for auth endpoints (login, signup, etc.)
+    const authEndpoints = ['/api/auth/login', '/api/auth/signup', '/api/auth/google', '/api/auth/refresh-token'];
+    const isAuthEndpoint = authEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
+
+    // If error is 401 and we haven't tried to refresh yet and it's not an auth endpoint
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {

@@ -14,6 +14,17 @@ const loginAttempts = new Map();
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 
+// Clear login attempts periodically (every 15 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, attempts] of loginAttempts.entries()) {
+    if (attempts.lockedUntil && now > attempts.lockedUntil) {
+      loginAttempts.delete(email);
+      logger.info('Login attempts cleared for email', { email });
+    }
+  }
+}, 15 * 60 * 1000);
+
 // Generate JWT tokens
 const generateAccessToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
@@ -272,11 +283,18 @@ export const refreshToken = async (req, res) => {
     }
 
     // Verify refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch (jwtError) {
+      // Token is invalid or expired - this is normal, don't log as security issue
+      return res.status(401).json({ message: 'Invalid or expired refresh token' });
+    }
 
     // Check if session exists
     const session = await Session.findByToken(refreshToken);
     if (!session) {
+      // Session doesn't exist - this is normal, don't log as security issue
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 

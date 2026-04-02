@@ -13,7 +13,7 @@ function Demo() {
   const [showClips, setShowClips] = useState(false); // Show clips section
   const [fastMode, setFastMode] = useState(true); // Fast mode (skip subtitles) - default ON
   const [showAdvanced, setShowAdvanced] = useState(false); // Show advanced options
-  const [clipDuration, setClipDuration] = useState(45); // Clip duration in seconds
+  const [clipDuration, setClipDuration] = useState(60); // Clip duration in seconds (default 1 minute)
   const [numClips, setNumClips] = useState(5); // Number of clips to generate
   
   // New advanced options
@@ -755,23 +755,28 @@ function Demo() {
                             <>
                               <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                  ⏱️ Clip Duration: {clipDuration} seconds
+                                  ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ""}` : `${clipDuration}sec`}
                                 </label>
                                 <input
                                   type="range"
-                                  min="15"
+                                  min="30"
                                   max="300"
-                                  step="15"
+                                  step="30"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>15s</span>
-                                  <span>45s</span>
-                                  <span>90s</span>
-                                  <span>180s</span>
-                                  <span>300s (5min)</span>
+                                  <span>30s</span>
+                                  <span>1m</span>
+                                  <span>1m30s</span>
+                                  <span>2m</span>
+                                  <span>2m30s</span>
+                                  <span>3m</span>
+                                  <span>3m30s</span>
+                                  <span>4m</span>
+                                  <span>4m30s</span>
+                                  <span>5m</span>
                                 </div>
                               </div>
 
@@ -789,9 +794,16 @@ function Demo() {
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>1 clip</span>
-                                  <span>5 clips</span>
-                                  <span>10 clips</span>
+                                  <span>1</span>
+                                  <span>2</span>
+                                  <span>3</span>
+                                  <span>4</span>
+                                  <span>5</span>
+                                  <span>6</span>
+                                  <span>7</span>
+                                  <span>8</span>
+                                  <span>9</span>
+                                  <span>10</span>
                                 </div>
                               </div>
                             </>
@@ -896,13 +908,13 @@ function Demo() {
 
                               <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                  ⏱️ Clip Duration: {clipDuration} seconds
+                                  ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ""}` : `${clipDuration}sec`}
                                 </label>
                                 <input
                                   type="range"
-                                  min="15"
+                                  min="30"
                                   max="300"
-                                  step="15"
+                                  step="30"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
@@ -922,6 +934,18 @@ function Demo() {
                                   onChange={(e) => setNumClips(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
+                              <div className="flex justify-between text-xs text-gray-600 mt-1">
+                                  <span>1</span>
+                                  <span>2</span>
+                                  <span>3</span>
+                                  <span>4</span>
+                                  <span>5</span>
+                                  <span>6</span>
+                                  <span>7</span>
+                                  <span>8</span>
+                                  <span>9</span>
+                                  <span>10</span>
+                                </div>
                               </div>
 
                               <p className="text-xs text-orange-700 p-2 bg-orange-100 rounded">
@@ -1137,13 +1161,13 @@ function Demo() {
                     <div className="text-center mb-6">
                       <div className="text-6xl mb-4">🔗</div>
                       <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        Paste YouTube Video URL
+                        Paste Video URL
                       </h3>
-                      <p className="text-gray-500 mb-2">
-                        We'll automatically download, analyze, and generate viral clips
+                      <p className="text-gray-500">
+                        We'll download and process the video for you
                       </p>
-                      <p className="text-sm text-purple-600 font-medium">
-                        ⚡ One-click processing: Download + AI Analysis + Clip Generation
+                      <p className="text-xs text-purple-600 mt-2">
+                        ✨ Supports YouTube, Instagram, Facebook, TikTok, Twitter, Vimeo & 1000+ sites
                       </p>
                     </div>
 
@@ -1254,23 +1278,28 @@ function Demo() {
                             <>
                               <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                  ⏱️ Clip Duration: {clipDuration} seconds
+                                  ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ""}` : `${clipDuration}sec`}
                                 </label>
                                 <input
                                   type="range"
-                                  min="15"
+                                  min="30"
                                   max="300"
-                                  step="15"
+                                  step="30"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>15s</span>
-                                  <span>45s</span>
-                                  <span>90s</span>
-                                  <span>180s</span>
-                                  <span>300s (5min)</span>
+                                  <span>30s</span>
+                                  <span>1m</span>
+                                  <span>1m30s</span>
+                                  <span>2m</span>
+                                  <span>2m30s</span>
+                                  <span>3m</span>
+                                  <span>3m30s</span>
+                                  <span>4m</span>
+                                  <span>4m30s</span>
+                                  <span>5m</span>
                                 </div>
                               </div>
 
@@ -1288,9 +1317,16 @@ function Demo() {
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                                  <span>1 clip</span>
-                                  <span>5 clips</span>
-                                  <span>10 clips</span>
+                                  <span>1</span>
+                                  <span>2</span>
+                                  <span>3</span>
+                                  <span>4</span>
+                                  <span>5</span>
+                                  <span>6</span>
+                                  <span>7</span>
+                                  <span>8</span>
+                                  <span>9</span>
+                                  <span>10</span>
                                 </div>
                               </div>
                             </>
@@ -1395,13 +1431,13 @@ function Demo() {
 
                               <div>
                                 <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                  ⏱️ Clip Duration: {clipDuration} seconds
+                                  ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ""}` : `${clipDuration}sec`}
                                 </label>
                                 <input
                                   type="range"
-                                  min="15"
+                                  min="30"
                                   max="300"
-                                  step="15"
+                                  step="30"
                                   value={clipDuration}
                                   onChange={(e) => setClipDuration(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
@@ -1421,6 +1457,18 @@ function Demo() {
                                   onChange={(e) => setNumClips(parseInt(e.target.value))}
                                   className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer"
                                 />
+                              <div className="flex justify-between text-xs text-gray-600 mt-1">
+                                  <span>1</span>
+                                  <span>2</span>
+                                  <span>3</span>
+                                  <span>4</span>
+                                  <span>5</span>
+                                  <span>6</span>
+                                  <span>7</span>
+                                  <span>8</span>
+                                  <span>9</span>
+                                  <span>10</span>
+                                </div>
                               </div>
 
                               <p className="text-xs text-orange-700 p-2 bg-orange-100 rounded">
@@ -1456,10 +1504,11 @@ function Demo() {
 
                     <form onSubmit={handleYoutubeSubmit} className="space-y-4">
                       <input
-                        type="text"
+                        type="url"
+                        required
                         value={youtubeUrl}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        placeholder="https://youtube.com/watch?v=..."
+                        placeholder="https://www.youtube.com/watch?v=... or any video URL"
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none"
                         disabled={processing}
                       />
@@ -1794,4 +1843,10 @@ function Demo() {
 }
 
 export default Demo;
+
+
+
+
+
+
 

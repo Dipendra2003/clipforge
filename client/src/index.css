@@ -1,3 +1,83 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom Range Slider Styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(147, 51, 234, 0.4), 0 0 0 1px rgba(147, 51, 234, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 8px rgba(147, 51, 234, 0.6), 0 0 0 2px rgba(147, 51, 234, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+  box-shadow: 0 1px 4px rgba(147, 51, 234, 0.5);
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(147, 51, 234, 0.4), 0 0 0 1px rgba(147, 51, 234, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 8px rgba(147, 51, 234, 0.6), 0 0 0 2px rgba(147, 51, 234, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb:active {
+  transform: scale(1.05);
+  box-shadow: 0 1px 4px rgba(147, 51, 234, 0.5);
+}
+
+/* Track styles */
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: transparent;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: transparent;
+}
+
+/* Focus styles */
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.2), 0 2px 6px rgba(147, 51, 234, 0.4);
+}
+
+input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.2), 0 2px 6px rgba(147, 51, 234, 0.4);
+}
