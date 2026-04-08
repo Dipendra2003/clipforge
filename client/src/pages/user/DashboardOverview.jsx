@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import toast from '../../utils/toast';
 import { getVideoUrl } from '../../utils/videoUrl';
 import AdvancedOptions from '../../components/AdvancedOptions';
 
 function DashboardOverview() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('upload');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -55,6 +55,11 @@ function DashboardOverview() {
     loadRecentActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Redirect admin users to admin dashboard (after all hooks)
+  if (isAdmin) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
 
   const loadStats = async () => {
     try {
@@ -670,7 +675,7 @@ function DashboardOverview() {
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-8 mb-8 text-white">
         <h1 className="text-3xl font-bold mb-2">
-          Welcome back, {user?.name?.split(' ')[0]}! 👋
+          Welcome back, {user?.name?.split(' ')[0] || 'User'}! 👋
         </h1>
         <p className="text-purple-100">Ready to create some viral clips?</p>
       </div>
