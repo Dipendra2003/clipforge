@@ -81,7 +81,7 @@ CREATE TABLE videos (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('upload', 'youtube')),
+    source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('upload', 'youtube', 'twitter', 'facebook', 'instagram', 'tiktok', 'url')),
     source_url TEXT, -- Original YouTube URL if applicable
     file_path TEXT NOT NULL, -- Path to video file on server
     thumbnail_path TEXT, -- Path to thumbnail image

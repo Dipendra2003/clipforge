@@ -81,3 +81,19 @@ input[type="range"]:focus::-webkit-slider-thumb {
 input[type="range"]:focus::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.2), 0 2px 6px rgba(147, 51, 234, 0.4);
 }
+
+/* Modal Animation */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}

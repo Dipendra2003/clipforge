@@ -46,15 +46,16 @@ const upload = multer({
 // Save processed video and clips from Flask
 router.post('/save-processed', async (req, res) => {
   try {
-    const { videoId, userId, sourceUrl, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl } = req.body;
+    const { videoId, userId, sourceUrl, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl, videoCloudUrl, videoCloudinaryPublicId } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    console.log('💾 Saving video with thumbnail:', {
+    console.log('💾 Saving video with cloud URLs:', {
       thumbnailUrl,
       thumbnailCloudUrl,
+      videoCloudUrl,
       sourceUrl
     });
 
@@ -88,6 +89,8 @@ router.post('/save-processed', async (req, res) => {
       filePath: `downloads/${videoId}.mp4`,
       thumbnailPath: thumbnailUrl ? `downloads/${videoId}_thumb.jpg` : null,
       thumbnailCloudUrl: thumbnailCloudUrl || null,
+      cloudUrl: videoCloudUrl || null,  // Save original video cloud URL
+      cloudinaryPublicId: videoCloudinaryPublicId || null,  // Save Cloudinary public ID
       duration: videoInfo.duration || 0,
       fileSize: videoInfo.file_size || 0,
       hasSubtitles: !!subtitleUrl,
@@ -120,10 +123,15 @@ router.post('/save-processed', async (req, res) => {
         console.log(`📝 Extracted from clipUrl: ${clip.clipUrl} → ${clipFilePath}`);
       }
       
-      // Ensure path starts with downloads/
-      if (clipFilePath && !clipFilePath.startsWith('downloads/')) {
+      // Ensure path starts with downloads/ (handle both forward and backslash)
+      if (clipFilePath && !clipFilePath.startsWith('downloads/') && !clipFilePath.startsWith('downloads\\')) {
         clipFilePath = `downloads/${clipFilePath}`;
         console.log(`📁 Added downloads/ prefix: ${clipFilePath}`);
+      }
+      
+      // Normalize path separators to forward slashes
+      if (clipFilePath) {
+        clipFilePath = clipFilePath.replace(/\\/g, '/');
       }
       
       console.log(`💾 Saving clip to database:`, {

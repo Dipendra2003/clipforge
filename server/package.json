@@ -8,7 +8,8 @@
     "dev": "nodemon Server.js",
     "start": "node Server.js",
     "migrate": "node migrations/run-migrations.js",
-    "test-db": "node test-db-connection.js"
+    "test-db": "node test-db-connection.js",
+    "cleanup": "node scripts/cleanup-downloads.js"
   },
   "keywords": [],
   "author": "",

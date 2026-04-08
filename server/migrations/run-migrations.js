@@ -1,4 +1,13 @@
 import pool from '../config/database.js';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env from server directory
+dotenv.config({ path: join(__dirname, '../.env') });
 
 async function runMigrations() {
   try {
@@ -68,7 +77,7 @@ async function runMigrations() {
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
         description TEXT,
-        source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('upload', 'youtube')),
+        source_type VARCHAR(20) NOT NULL CHECK (source_type IN ('upload', 'youtube', 'twitter', 'facebook', 'instagram', 'tiktok', 'url')),
         source_url TEXT,
         file_path TEXT NOT NULL,
         thumbnail_path TEXT,
@@ -85,7 +94,7 @@ async function runMigrations() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✓ Created videos table');
+    console.log('✓ Created videos table (supports: upload, youtube, twitter, facebook, instagram, tiktok, url)');
 
     // Create clips table
     await pool.query(`
@@ -102,7 +111,7 @@ async function runMigrations() {
         cloud_url TEXT,
         cloudinary_public_id TEXT,
         emotion VARCHAR(50),
-        viral_score DECIMAL(5,2),
+        viral_score DECIMAL(5,2) CHECK (viral_score >= 0 AND viral_score <= 100),
         transcript TEXT,
         status VARCHAR(20) NOT NULL DEFAULT 'completed' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'posted')),
         metadata JSONB,
@@ -218,22 +227,20 @@ async function runMigrations() {
     `);
     console.log('✓ Created triggers (5 total)');
 
-    // Insert admin user
+    // Insert admin user (will be replaced by createAdmin.js script)
     await pool.query(`
       INSERT INTO users (name, email, password, role, email_verified)
-      VALUES ('Admin User', 'admin@example.com', '$2a$10$rZ5YvqZqZqZqZqZqZqZqZuK5YvqZqZqZqZqZqZqZqZqZqZqZqZqZq', 'admin', TRUE)
+      VALUES ('Admin User', 'dipendrak299@gmail.com', '$2a$10$rZ5YvqZqZqZqZqZqZqZqZuK5YvqZqZqZqZqZqZqZqZqZqZqZqZqZq', 'admin', TRUE)
       ON CONFLICT (email) DO NOTHING
     `);
-    console.log('✓ Created admin user');
+    console.log('✓ Created default admin user');
 
     console.log('\n✅ Database setup complete!\n');
     console.log('📋 Tables: users, sessions, tokens, videos, clips, platform_connections, published_posts');
     console.log('📊 Indexes: 25+ indexes for optimal performance');
     console.log('⚡ Triggers: 5 auto-update triggers\n');
-    console.log('👤 Default Admin Account:');
-    console.log('   Email: admin@example.com');
-    console.log('   Password: admin123');
-    console.log('   ⚠️  Change this password in production!\n');
+    console.log('⚠️  IMPORTANT: Run "node scripts/createAdmin.js" to set up your admin account');
+    console.log('   This will remove all existing admins and create a new one with proper credentials.\n');
 
     process.exit(0);
   } catch (error) {

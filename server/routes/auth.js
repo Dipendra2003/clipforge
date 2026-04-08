@@ -46,5 +46,6 @@ router.post('/logout-all', authenticate, authController.logoutAll);
 router.get('/me', authenticate, authController.getCurrentUser);
 router.put('/profile', authenticate, validateProfileUpdate, authController.updateProfile);
 router.put('/password', authenticate, validatePasswordChange, authController.changePassword);
+router.delete('/account', authenticate, authController.deleteAccount);
 
 export default router;

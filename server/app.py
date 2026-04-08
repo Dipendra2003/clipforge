@@ -405,6 +405,8 @@ def process_video():
             "subtitleUrl": f"http://127.0.0.1:5001/video/{video_id}.vtt" if results.get('subtitle_path') else None,
             "thumbnailUrl": results.get('thumbnail_cloud_url') or (f"http://127.0.0.1:5001/video/{video_id}_thumb.jpg" if results.get('thumbnail_path') else None),
             "thumbnailCloudUrl": results.get('thumbnail_cloud_url'),
+            "videoCloudUrl": results.get('video_cloud_url'),  # Add original video cloud URL
+            "videoCloudinaryPublicId": results.get('video_cloudinary_public_id'),  # Add Cloudinary public ID
             "clips": []
         }
         
@@ -434,6 +436,20 @@ def process_video():
             })
         
         print(f"✅ Processing completed: {len(response['clips'])} clips created")
+        
+        # Delete original video file after successful processing (if cloud storage is enabled)
+        if results.get('status') == 'completed' and os.environ.get('USE_CLOUD_STORAGE', 'false').lower() == 'true':
+            try:
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                    print(f"🗑️ Original video deleted: {video_path}")
+                
+                # Also delete metadata file if exists
+                if os.path.exists(metadata_path):
+                    os.remove(metadata_path)
+                    print(f"🗑️ Metadata file deleted: {metadata_path}")
+            except Exception as e:
+                print(f"⚠️ Could not delete original video: {e}")
         
         # Note: Frontend will handle saving to database via save-processed endpoint
         # This avoids duplicate entries

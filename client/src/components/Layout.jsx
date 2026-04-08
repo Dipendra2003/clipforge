@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

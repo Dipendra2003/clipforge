@@ -54,6 +54,12 @@ class Token {
     await pool.query(query, [userId, type]);
   }
 
+  // Delete all tokens for a user
+  static async deleteByUserId(userId) {
+    const query = 'DELETE FROM tokens WHERE user_id = $1';
+    await pool.query(query, [userId]);
+  }
+
   // Clean up expired tokens
   static async cleanupExpired() {
     const query = 'DELETE FROM tokens WHERE expires_at < CURRENT_TIMESTAMP';

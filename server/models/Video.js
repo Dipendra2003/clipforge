@@ -11,6 +11,8 @@ class Video {
       filePath,
       thumbnailPath,
       thumbnailCloudUrl,
+      cloudUrl,
+      cloudinaryPublicId,
       duration,
       fileSize,
       hasSubtitles,
@@ -21,10 +23,10 @@ class Video {
     const query = `
       INSERT INTO videos (
         user_id, title, description, source_type, source_url,
-        file_path, thumbnail_path, thumbnail_cloud_url, duration, file_size,
+        file_path, thumbnail_path, thumbnail_cloud_url, cloud_url, duration, file_size,
         has_subtitles, subtitle_path, metadata, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `;
 
@@ -37,6 +39,7 @@ class Video {
       filePath,
       thumbnailPath || null,
       thumbnailCloudUrl || null,
+      cloudUrl || null,
       duration || 0,
       fileSize || 0,
       hasSubtitles || false,
@@ -79,8 +82,9 @@ class Video {
 
   static async update(id, updates) {
     const allowedFields = [
-      'title', 'description', 'thumbnail_path', 'duration',
-      'has_subtitles', 'subtitle_path', 'metadata', 'status'
+      'title', 'description', 'thumbnail_path', 'thumbnail_cloud_url',
+      'cloud_url', 'duration', 'has_subtitles', 'subtitle_path', 
+      'metadata', 'status'
     ];
 
     const setClause = [];

@@ -577,9 +577,31 @@ Remember:
                     # Keep local file if upload failed
             
             if progress_callback:
-                progress_callback(60, 'Thumbnail generated')
+                progress_callback(60, 'Thumbnail created')
             
-            # Step 5: Create clips (60-100%)
+            # Step 4.5: Upload original video to Cloudinary (60-65%)
+            if USE_CLOUD_STORAGE:
+                if progress_callback:
+                    progress_callback(62, 'Processing video...')
+                print("\n☁️ Uploading original video to Cloudinary...")
+                
+                video_upload_result = upload_video(
+                    self.video_path,
+                    folder="videos",
+                    public_id=self.video_id
+                )
+                
+                if video_upload_result['success']:
+                    results['video_cloud_url'] = video_upload_result['secure_url']
+                    results['video_cloudinary_public_id'] = video_upload_result['public_id']
+                    print(f"✅ Original video uploaded: {video_upload_result['secure_url']}")
+                else:
+                    print(f"⚠️ Original video upload failed, keeping local file")
+                
+                if progress_callback:
+                    progress_callback(65, 'Video processed successfully')
+            
+            # Step 5: Create clips (65-100%)
             if progress_callback:
                 progress_callback(65, 'Creating video clips...')
             print("\nStep 5: Creating video clips...")
@@ -670,7 +692,7 @@ Remember:
                         if progress_callback:
                             progress_callback(
                                 int(current_progress), 
-                                f'Uploading clip {i+1}/{max_clips} to cloud...'
+                                f'Finalizing clip {i+1}/{max_clips}...'
                             )
                         
                         print(f"☁️ Uploading clip {i+1} to Cloudinary...")

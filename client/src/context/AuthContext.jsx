@@ -1,17 +1,8 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { authAPI, getUser, removeToken } from '../utils/auth';
+import { AuthContext } from './createAuthContext';
 
-const AuthContext = createContext(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +16,7 @@ export const AuthProvider = ({ children }) => {
           const response = await authAPI.getCurrentUser();
           setUser(response.user);
         }
-      } catch (error) {
+      } catch {
         removeToken();
       } finally {
         setLoading(false);
@@ -81,4 +72,4 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}

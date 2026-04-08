@@ -532,7 +532,7 @@ function VideoDetails() {
           {video.file_path ? (
             <video 
               key={video.id}
-              src={getVideoUrl(video.file_path)}
+              src={getVideoUrl(video.file_path, video.cloud_url)}
               className="w-full h-full object-contain"
               controls
               preload="metadata"

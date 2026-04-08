@@ -634,3 +634,31 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: 'Error changing password' });
   }
 };
+
+// Delete account
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Delete all user sessions
+    await Session.deleteAllByUserId(userId);
+
+    // Delete all user tokens
+    await Token.deleteByUserId(userId);
+
+    // Delete user account
+    await User.delete(userId);
+
+    logger.authEvent('ACCOUNT_DELETED', userId, { ip: req.ip });
+
+    // Clear refresh token cookie
+    res.clearCookie('refreshToken');
+
+    res.json({ 
+      message: 'Account deleted successfully' 
+    });
+  } catch (error) {
+    logger.error('Delete account error', { error: error.message, userId: req.user.id, ip: req.ip });
+    res.status(500).json({ message: 'Error deleting account' });
+  }
+};
