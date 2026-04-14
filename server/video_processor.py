@@ -147,6 +147,19 @@ class VideoProcessor:
         clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', or 'range'
         video_metadata = options.get('video_metadata', {})
         
+        # Get video duration from transcript or metadata
+        video_duration = 0
+        if transcript and 'segments' in transcript and transcript['segments']:
+            last_segment = transcript['segments'][-1]
+            video_duration = float(last_segment.get('end', 0))
+        
+        # Fallback to video_info if available
+        if video_duration == 0:
+            video_info = options.get('video_info', {})
+            video_duration = float(video_info.get('duration', 60))
+        
+        print(f"Video duration: {video_duration}s")
+        
         # If mode is divide, use fallback analysis (equal division doesn't need AI)
         # But for 'range' mode, we still want AI to find best moments within the range
         if clip_mode == 'divide':
@@ -177,7 +190,7 @@ class VideoProcessor:
         
         try:
             # Use the model specified in environment or default
-            model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
             print(f"Attempting to use Gemini model: {model_name}")
             model = genai.GenerativeModel(model_name)
             
@@ -187,17 +200,21 @@ Analyze this video transcript and identify the top {num_clips} most viral-worthy
 VIDEO CONTEXT:
 {video_context}
 
+VIDEO DURATION: {video_duration} seconds (CRITICAL: All clips must fit within this duration!)
+
 IMPORTANT REQUIREMENTS:
 1. Each clip MUST be EXACTLY {clip_duration} seconds long
 2. Calculate end_time as: start_time + {clip_duration}
-3. Generate titles that are RELEVANT to the actual video content and context above
-4. Titles should match the video's theme, mood, and genre (e.g., if it's a song, use music-related titles; if it's comedy, use funny titles; if it's educational, use informative titles)
-5. DO NOT use generic clickbait titles that don't relate to the video content
-6. Consider the video title, description, and tags when creating clip titles
+3. ALL clips MUST start and end within 0 to {video_duration} seconds
+4. If a clip would exceed {video_duration}s, adjust the start_time so end_time = {video_duration}
+5. Generate titles that are RELEVANT to the actual video content and context above
+6. Titles should match the video's theme, mood, and genre (e.g., if it's a song, use music-related titles; if it's comedy, use funny titles; if it's educational, use informative titles)
+7. DO NOT use generic clickbait titles that don't relate to the video content
+8. Consider the video title, description, and tags when creating clip titles
 
 For each moment, provide:
-1. Start time (in seconds)
-2. End time (in seconds) - MUST be exactly start_time + {clip_duration}
+1. Start time (in seconds) - MUST be between 0 and {video_duration - clip_duration}
+2. End time (in seconds) - MUST be exactly start_time + {clip_duration} AND not exceed {video_duration}
 3. Emotion/vibe (joy, excitement, surprise, inspiration, humor, tension, romantic, sad, energetic, etc.)
 4. Viral score (0 to 100) - must be at least {min_viral_score * 100} (as percentage)
 5. Why it's viral-worthy (brief explanation)
@@ -222,6 +239,8 @@ Respond in JSON format:
 
 Remember: 
 - end_time MUST equal start_time + {clip_duration} seconds!
+- NO clip can start after {video_duration - clip_duration} seconds!
+- NO clip can end after {video_duration} seconds!
 - viral_score should be 0-100 (percentage)
 - Titles MUST be relevant to the video's actual content, theme, and genre
 - Use the video context provided above to create appropriate titles
@@ -247,6 +266,29 @@ Remember:
                     score = score * 100
                     clip['viral_score'] = score
                 print(f"  Clip {i+1}: Score={score:.0f}%, Title={clip.get('title', 'N/A')}")
+            
+            # CRITICAL: Validate and fix clip timestamps to ensure they don't exceed video duration
+            validated_clips = []
+            for clip in analysis.get('clips', []):
+                start_time = float(clip.get('start_time', 0))
+                end_time = float(clip.get('end_time', start_time + clip_duration))
+                
+                # Ensure clip doesn't exceed video duration
+                if end_time > video_duration:
+                    # Adjust to fit within video
+                    end_time = video_duration
+                    start_time = max(0, end_time - clip_duration)
+                    print(f"⚠️ Adjusted clip to fit video duration: {start_time:.1f}s - {end_time:.1f}s")
+                
+                # Only include clips that start within video duration
+                if start_time < video_duration:
+                    clip['start_time'] = start_time
+                    clip['end_time'] = end_time
+                    validated_clips.append(clip)
+                else:
+                    print(f"⚠️ Skipping clip starting at {start_time}s (exceeds video duration {video_duration}s)")
+            
+            analysis['clips'] = validated_clips
             
             # Filter by viral score (convert min_viral_score to percentage if needed)
             min_score_threshold = min_viral_score * 100 if min_viral_score <= 1.0 else min_viral_score
@@ -389,6 +431,15 @@ Remember:
         """Create a video clip using FFmpeg"""
         print(f"Creating clip: {start_time}s to {end_time}s...")
         
+        # Validate timestamps
+        if start_time < 0:
+            print(f"⚠️ Invalid start_time {start_time}s, adjusting to 0s")
+            start_time = 0
+        
+        if end_time <= start_time:
+            print(f"❌ Invalid clip: end_time ({end_time}s) must be greater than start_time ({start_time}s)")
+            return False
+        
         duration = end_time - start_time
         
         # Build FFmpeg command
@@ -415,9 +466,16 @@ Remember:
         cmd.append(output_path)
         
         try:
-            subprocess.run(cmd, check=True, capture_output=True)
-            print(f"Clip saved to {output_path}")
-            return True
+            result = subprocess.run(cmd, check=True, capture_output=True)
+            
+            # Verify the output file was created and has content
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:  # At least 1KB
+                print(f"Clip saved to {output_path}")
+                return True
+            else:
+                print(f"❌ Clip creation failed: output file is empty or missing")
+                return False
+                
         except subprocess.CalledProcessError as e:
             print(f"FFmpeg error: {e.stderr.decode()}")
             return False
@@ -490,7 +548,9 @@ Remember:
             print("⚡ FAST MODE: Skipping subtitle generation")
         if subtitle_language:
             print(f"Subtitle language: {subtitle_language}")
-        print(f"Options: Duration={clip_duration}s, Clips={num_clips}, MinScore={min_viral_score}")
+        # Display min_viral_score as percentage for clarity
+        min_score_display = min_viral_score * 100 if min_viral_score <= 1.0 else min_viral_score
+        print(f"Options: Duration={clip_duration}s, Clips={num_clips}, MinScore={min_score_display:.0f}%")
         print(f"{'='*60}\n")
         
         results = {
@@ -541,6 +601,8 @@ Remember:
             if progress_callback:
                 progress_callback(45, 'Analyzing video with AI...')
             print("\nStep 3: Analyzing video with AI...")
+            # Add video_info to options for duration validation
+            options['video_info'] = video_info
             analysis = self.analyze_with_ai(transcript, options)
             results['analysis'] = analysis
             if progress_callback:
@@ -634,8 +696,12 @@ Remember:
             progress_per_clip = 35 / max_clips if max_clips > 0 else 0
             current_progress = 65
             
+            # Track created clips to avoid duplicates
+            created_ranges = []
+            actual_clip_number = 1
+            
             for i, clip_data in enumerate(analysis['clips'][:max_clips]):
-                clip_filename = f"{self.video_id}_clip_{i+1}.mp4"
+                clip_filename = f"{self.video_id}_clip_{actual_clip_number}.mp4"
                 clip_path = os.path.join(clips_folder, clip_filename)
                 
                 if progress_callback:
@@ -648,20 +714,49 @@ Remember:
                 start_time = float(clip_data['start_time'])
                 end_time = float(clip_data['end_time'])
                 actual_duration = end_time - start_time
+                video_duration = video_info.get('duration', 0)
                 
                 # If duration is not close to target, adjust end_time
                 target_duration = clip_duration
                 if abs(actual_duration - target_duration) > 5:  # More than 5 seconds off
                     print(f"⚠️ Clip {i+1} duration {actual_duration:.1f}s differs from target {target_duration}s, adjusting...")
-                    end_time = start_time + target_duration
                     
-                    # Make sure we don't exceed video duration
-                    video_duration = video_info.get('duration', 0)
-                    if end_time > video_duration:
+                    # If target duration exceeds video duration, use the full video
+                    if target_duration >= video_duration:
+                        start_time = 0
                         end_time = video_duration
-                        start_time = max(0, end_time - target_duration)
+                        print(f"✓ Using full video: {start_time:.1f}s - {end_time:.1f}s ({end_time - start_time:.1f}s)")
+                    else:
+                        # Try to keep the original start time and extend duration
+                        end_time = start_time + target_duration
+                        
+                        # If it exceeds video duration, shift the clip backwards
+                        if end_time > video_duration:
+                            end_time = video_duration
+                            start_time = max(0, end_time - target_duration)
+                        
+                        print(f"✓ Adjusted to {start_time:.1f}s - {end_time:.1f}s ({end_time - start_time:.1f}s)")
+                
+                # Check for duplicate ranges (clips that overlap significantly)
+                is_duplicate = False
+                for existing_start, existing_end in created_ranges:
+                    # Calculate overlap
+                    overlap_start = max(start_time, existing_start)
+                    overlap_end = min(end_time, existing_end)
+                    overlap_duration = max(0, overlap_end - overlap_start)
                     
-                    print(f"✓ Adjusted to {start_time:.1f}s - {end_time:.1f}s ({end_time - start_time:.1f}s)")
+                    # If more than 80% overlap, consider it a duplicate
+                    clip_duration_actual = end_time - start_time
+                    if clip_duration_actual > 0 and (overlap_duration / clip_duration_actual) > 0.8:
+                        print(f"⚠️ Skipping clip {i+1} - too similar to existing clip ({overlap_duration:.1f}s overlap)")
+                        is_duplicate = True
+                        break
+                
+                if is_duplicate:
+                    continue
+                
+                # Add to created ranges
+                created_ranges.append((start_time, end_time))
                 
                 # Only add subtitles if they were successfully generated
                 has_subtitles = subtitle_path and os.path.exists(subtitle_path) and os.path.getsize(subtitle_path) > 10
@@ -676,14 +771,14 @@ Remember:
                 
                 if success:
                     clip_info = {
-                        'clip_number': i + 1,
+                        'clip_number': actual_clip_number,
                         'file_path': clip_path,
                         'start_time': start_time,  # Use corrected time
                         'end_time': end_time,  # Use corrected time
                         'duration': end_time - start_time,  # Calculate from corrected times
                         'emotion': clip_data.get('emotion', 'general'),
                         'viral_score': clip_data.get('viral_score', 0.7),
-                        'title': clip_data.get('title', f'Clip {i+1}'),
+                        'title': clip_data.get('title', f'Clip {actual_clip_number}'),
                         'reason': clip_data.get('reason', 'Generated clip')
                     }
                     
@@ -692,14 +787,14 @@ Remember:
                         if progress_callback:
                             progress_callback(
                                 int(current_progress), 
-                                f'Finalizing clip {i+1}/{max_clips}...'
+                                f'Finalizing clip {actual_clip_number}/{max_clips}...'
                             )
                         
-                        print(f"☁️ Uploading clip {i+1} to Cloudinary...")
+                        print(f"☁️ Uploading clip {actual_clip_number} to Cloudinary...")
                         upload_result = upload_video(
                             clip_path, 
                             folder="clips",
-                            public_id=f"{self.video_id}_clip_{i+1}"
+                            public_id=f"{self.video_id}_clip_{actual_clip_number}"
                         )
                         
                         if upload_result['success']:
@@ -717,6 +812,7 @@ Remember:
                             print(f"⚠️ Cloud upload failed, keeping local file")
                     
                     clips_created.append(clip_info)
+                    actual_clip_number += 1
                 
                 current_progress += progress_per_clip
             

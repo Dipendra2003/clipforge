@@ -10,7 +10,6 @@ import Pricing from './pages/Pricing';
 import Demo from './pages/Demo';
 import About from './pages/About';
 import Contact from './pages/Contact';
-import Blog from './pages/Blog';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import ShareClip from './pages/ShareClip';
@@ -30,6 +29,7 @@ import VideoDetails from './pages/user/VideoDetails';
 import Clips from './pages/user/Clips';
 import Scheduled from './pages/user/Scheduled';
 import Analytics from './pages/user/Analytics';
+import ClipAnalytics from './pages/user/ClipAnalytics';
 import Subscription from './pages/user/Subscription';
 import Settings from './pages/user/Settings';
 
@@ -47,11 +47,11 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
+            <Route path="how-it-works" element={<Home />} />
             <Route path="pricing" element={<Pricing />} />
             <Route path="demo" element={<Demo />} />
             <Route path="about" element={<About />} />
             <Route path="contact" element={<Contact />} />
-            <Route path="blog" element={<Blog />} />
             <Route path="terms" element={<Terms />} />
             <Route path="privacy" element={<Privacy />} />
             <Route path="login" element={<Login />} />
@@ -79,6 +79,7 @@ function App() {
             <Route path="clips" element={<Clips />} />
             <Route path="scheduled" element={<Scheduled />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="analytics/clip/:clipId" element={<ClipAnalytics />} />
             <Route path="subscription" element={<Subscription />} />
             <Route path="settings" element={<Settings />} />
           </Route>

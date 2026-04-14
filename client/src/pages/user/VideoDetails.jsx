@@ -27,6 +27,7 @@ function VideoDetails() {
   const [postedClips, setPostedClips] = useState({});
   const [platformConnections, setPlatformConnections] = useState([]);
   const [showPostModal, setShowPostModal] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(null); // { clip, deleteFromYouTube }
 
   useEffect(() => {
     fetchVideoDetails();
@@ -173,14 +174,10 @@ function VideoDetails() {
     toast.success(postData.message || 'Posted successfully!');
   };
 
-  const handleDeletePost = async (clip) => {
+  const handleDeletePost = async (clip, deleteFromYouTube = false) => {
     const postData = getPostData(clip.id);
     if (!postData || !postData.id) {
       toast.error('Post data not found');
-      return;
-    }
-
-    if (!window.confirm('Delete this post record? This will allow you to post this clip again.\n\nNote: This does NOT delete the video from YouTube. You must delete it manually from YouTube first.')) {
       return;
     }
 
@@ -188,11 +185,20 @@ function VideoDetails() {
       const token = localStorage.getItem('accessToken');
       const response = await axios.delete(
         `${API_URL}/api/post/${postData.id}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        { 
+          headers: { 'Authorization': `Bearer ${token}` },
+          data: { deleteFromPlatform: deleteFromYouTube }
+        }
       );
 
       if (response.data.success) {
-        toast.success('Post deleted. You can now post this clip again!');
+        if (response.data.deletedFromYouTube) {
+          toast.success('Video deleted from YouTube and post record removed!');
+        } else if (response.data.youtubeError) {
+          toast.warning(`Post record removed, but YouTube deletion failed: ${response.data.youtubeError}`);
+        } else {
+          toast.success('Post record removed. You can now post this clip again!');
+        }
         
         // Remove from posted clips map
         setPostedClips(prev => {
@@ -209,6 +215,8 @@ function VideoDetails() {
       console.error('Delete post error:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to delete post';
       toast.error(errorMessage);
+    } finally {
+      setShowDeleteDialog(null);
     }
   };
 
@@ -1015,17 +1023,23 @@ function VideoDetails() {
                         
                         {/* Delete/Cancel Button */}
                         {getPostData(clip.id).status === 'published' && (
-                          <>
+                          <div className="space-y-2">
                             <button
-                              onClick={() => handleDeletePost(clip)}
+                              onClick={() => setShowDeleteDialog({ clip, deleteFromYouTube: true })}
+                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                            >
+                              🗑️ Delete from YouTube
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteDialog({ clip, deleteFromYouTube: false })}
                               className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
                             >
-                              🗑️ Remove Post Record
+                              � Remove Record Only
                             </button>
                             <p className="text-xs text-gray-500 text-center">
-                              Delete the video from YouTube first, then remove the post record here to post again.
+                              Delete from YouTube to permanently remove the video, or just remove the record to post again.
                             </p>
-                          </>
+                          </div>
                         )}
                         
                         {(getPostData(clip.id).status === 'scheduled' || getPostData(clip.id).status === 'pending' || getPostData(clip.id).status === 'uploading') && (
@@ -1108,6 +1122,61 @@ function VideoDetails() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fadeIn"
+          onClick={() => setShowDeleteDialog(null)}
+        >
+          <div 
+            className="bg-gradient-to-b from-gray-50 to-white rounded-3xl p-10 max-w-md w-full mx-4 shadow-2xl transform transition-all animate-slideUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-1">localhost:5173 says</h3>
+              <div className="h-0.5 bg-gradient-to-r from-gray-300 to-transparent"></div>
+            </div>
+            
+            {showDeleteDialog.deleteFromYouTube ? (
+              <>
+                <p className="text-gray-700 mb-2 text-base leading-relaxed">
+                  Delete this video from YouTube AND remove the post record?
+                </p>
+                <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+                  This will permanently delete the video from your YouTube channel!
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-700 mb-2 text-base leading-relaxed">
+                  Remove the post record only?
+                </p>
+                <p className="text-gray-500 mb-8 text-sm leading-relaxed">
+                  The video will remain on YouTube, but you'll be able to post this clip again.
+                </p>
+              </>
+            )}
+            
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  handleDeletePost(showDeleteDialog.clip, showDeleteDialog.deleteFromYouTube);
+                }}
+                className="px-10 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-full hover:from-yellow-700 hover:to-yellow-800 transition-all duration-200 font-semibold text-base shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                OK
+              </button>
+              <button
+                onClick={() => setShowDeleteDialog(null)}
+                className="px-10 py-3 bg-gradient-to-r from-yellow-100 to-yellow-200 text-gray-800 rounded-full hover:from-yellow-200 hover:to-yellow-300 transition-all duration-200 font-semibold text-base shadow-md hover:shadow-lg transform hover:scale-105"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

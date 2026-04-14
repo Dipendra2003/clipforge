@@ -414,11 +414,24 @@ router.delete('/:videoId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Delete video file
+    // Delete video file if it exists locally
     try {
-      await fsPromises.unlink(video.file_path);
+      if (video.file_path && !video.file_path.startsWith('http')) {
+        // Check if file exists before trying to delete
+        try {
+          await fsPromises.access(video.file_path);
+          await fsPromises.unlink(video.file_path);
+          console.log('Video file deleted:', video.file_path);
+        } catch (err) {
+          if (err.code === 'ENOENT') {
+            console.log('Video file already deleted or not found:', video.file_path);
+          } else {
+            console.error('Error deleting video file:', err);
+          }
+        }
+      }
     } catch (err) {
-      console.error('Error deleting video file:', err);
+      console.error('Error checking video file:', err);
     }
 
     // Delete from database (clips will be deleted via CASCADE)

@@ -14,8 +14,10 @@ import userRoutes from './routes/user.js';
 import platformRoutes from './routes/platform.js';
 import postRoutes from './routes/post.js';
 import aiRoutes from './routes/ai.js';
+import analyticsRoutes from './routes/analytics.js';
 import { setupCleanupJobs } from './utils/cleanup.js';
 import { initScheduler } from './services/scheduler.js';
+import { initAnalyticsScheduler } from './services/analyticsScheduler.js';
 
 dotenv.config();
 
@@ -67,6 +69,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/post', postRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -96,6 +99,10 @@ app.listen(PORT, () => {
   // Initialize post scheduler for YouTube Shorts
   initScheduler();
   console.log('✓ Post scheduler initialized');
+  
+  // Initialize analytics scheduler for YouTube analytics sync
+  initAnalyticsScheduler();
+  console.log('✓ Analytics scheduler initialized');
 });
 
 export default app;

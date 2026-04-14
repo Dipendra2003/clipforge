@@ -290,24 +290,24 @@ When processing videos, you can customize:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     React Frontend (Vite)                    │
-│                      Port 5173                               │
-│  - User Interface                                            │
-│  - Authentication UI                                         │
-│  - Video Management                                          │
-│  - Dashboard & Analytics                                     │
+│                     React Frontend (Vite)                   │
+│                      Port 5173                              │
+│  - User Interface                                           │
+│  - Authentication UI                                        │
+│  - Video Management                                         │
+│  - Dashboard & Analytics                                    │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      │ HTTP/REST API
                      │
 ┌────────────────────▼────────────────────────────────────────┐
-│                  Node.js Express API                         │
-│                      Port 5000                               │
-│  - Authentication & Authorization                            │
-│  - User Management                                           │
-│  - Video/Clip Metadata                                       │
-│  - Platform OAuth                                            │
-│  - Post Scheduling                                           │
+│                  Node.js Express API                        │
+│                      Port 5000                              │
+│  - Authentication & Authorization                           │
+│  - User Management                                          │
+│  - Video/Clip Metadata                                      │
+│  - Platform OAuth                                           │
+│  - Post Scheduling                                          │
 └────────┬───────────────────────────────────┬────────────────┘
          │                                   │
          │                                   │ HTTP Requests
@@ -412,12 +412,12 @@ clipforge/
 │   │   │   │   ├── VideoDetails.jsx
 │   │   │   │   └── Videos.jsx
 │   │   │   ├── About.jsx
-│   │   │   ├── Blog.jsx
 │   │   │   ├── Contact.jsx
 │   │   │   ├── Demo.jsx
 │   │   │   ├── Home.jsx
 │   │   │   ├── Pricing.jsx
 │   │   │   ├── Privacy.jsx
+│   │   │   ├── ShareClip.jsx
 │   │   │   └── Terms.jsx
 │   │   ├── utils/               # Utility functions
 │   │   │   ├── auth.js

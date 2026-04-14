@@ -63,6 +63,18 @@ def download_video():
     is_tiktok = 'tiktok.com' in url.lower()
     is_facebook = 'facebook.com' in url.lower() or 'fb.watch' in url.lower()
     
+    # Block Facebook downloads with helpful message
+    if is_facebook:
+        return jsonify({
+            "error": "Facebook videos are not supported",
+            "details": "Facebook actively blocks video downloads. Please use one of these alternatives:",
+            "alternatives": [
+                "1. Download the video manually from Facebook and use 'Manual Upload'",
+                "2. Use YouTube, Instagram, TikTok, or Vimeo instead",
+                "3. Share the video to another platform first, then download from there"
+            ]
+        }), 400
+    
     # Map quality to yt-dlp format string
     if is_instagram:
         # Instagram: try multiple format options as fallback

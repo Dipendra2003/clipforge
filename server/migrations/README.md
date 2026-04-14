@@ -1,10 +1,10 @@
 # Database Migrations
 
-This folder contains database schema and migration scripts for ClipForge.
+This folder contains the complete database schema and migration scripts for ClipForge.
 
 ## Files
 
-- `schema.sql` - Complete database schema with all tables, indexes, and triggers
+- `schema.sql` - Complete database schema with all tables, indexes, triggers, and analytics
 - `run-migrations.js` - Node.js script to execute migrations programmatically
 
 ## Running Migrations
@@ -28,28 +28,30 @@ psql $DATABASE_URL -f migrations/schema.sql
 
 ## What Gets Created
 
-### Tables (7 total)
+### Tables (8 total)
 1. **users** - User accounts (email/password + Google OAuth)
 2. **sessions** - Refresh tokens for multi-device support
 3. **tokens** - Email verification and password reset tokens
 4. **videos** - Uploaded and downloaded videos
 5. **clips** - AI-generated viral clips
 6. **platform_connections** - Social media OAuth tokens
-7. **published_posts** - Posted content tracking
+7. **published_posts** - Posted content tracking with analytics
+8. **analytics_snapshots** - Daily analytics data for time-series analysis
 
-### Indexes (25+ total)
+### Indexes (30+ total)
 - Optimized indexes for all foreign keys
 - Performance indexes for common queries
 - Composite indexes for complex lookups
+- Analytics-specific indexes for reporting
 
 ### Triggers (5 total)
 - Auto-update `updated_at` timestamp on all tables
 
 ### Default Data
 - Admin user account:
-  - Email: `admin@example.com`
-  - Password: `admin123`
-  - ⚠️ **Change this password in production!**
+  - Email: `dipendrak299@gmail.com`
+  - Password: (set via `createAdmin.js` script)
+  - ⚠️ **Run `node scripts/createAdmin.js` to set up admin credentials**
 
 ## Database Requirements
 
@@ -85,3 +87,4 @@ DATABASE_URL=postgresql://user:password@host:5432/database
 - All data will be lost when re-running migrations
 - Migrations are idempotent (safe to run multiple times)
 - Use in development only - production needs proper migration strategy
+- Analytics columns are included in the main schema (no separate migration needed)

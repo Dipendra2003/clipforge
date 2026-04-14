@@ -19,6 +19,7 @@ async function runMigrations() {
 
     // Drop existing tables
     await pool.query(`
+      DROP TABLE IF EXISTS analytics_snapshots CASCADE;
       DROP TABLE IF EXISTS published_posts CASCADE;
       DROP TABLE IF EXISTS platform_connections CASCADE;
       DROP TABLE IF EXISTS clips CASCADE;
@@ -155,12 +156,37 @@ async function runMigrations() {
         error_message TEXT,
         scheduled_for TIMESTAMP,
         is_scheduled BOOLEAN DEFAULT FALSE,
+        views_count INTEGER DEFAULT 0,
+        likes_count INTEGER DEFAULT 0,
+        comments_count INTEGER DEFAULT 0,
+        shares_count INTEGER DEFAULT 0,
+        watch_time_seconds INTEGER DEFAULT 0,
+        avg_view_duration DECIMAL(5,2) DEFAULT 0,
+        click_through_rate DECIMAL(5,2) DEFAULT 0,
+        last_synced_at TIMESTAMP,
         metadata JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✓ Created published_posts table');
+    console.log('✓ Created published_posts table (with analytics columns)');
+
+    // Create analytics_snapshots table
+    await pool.query(`
+      CREATE TABLE analytics_snapshots (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        post_id UUID NOT NULL REFERENCES published_posts(id) ON DELETE CASCADE,
+        snapshot_date DATE NOT NULL,
+        views_count INTEGER DEFAULT 0,
+        likes_count INTEGER DEFAULT 0,
+        comments_count INTEGER DEFAULT 0,
+        shares_count INTEGER DEFAULT 0,
+        watch_time_seconds INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, snapshot_date)
+      )
+    `);
+    console.log('✓ Created analytics_snapshots table');
 
     // Create indexes
     await pool.query(`
@@ -192,13 +218,19 @@ async function runMigrations() {
       CREATE INDEX idx_published_posts_status ON published_posts(status);
       CREATE INDEX idx_published_posts_created_at ON published_posts(created_at DESC);
       CREATE INDEX idx_published_posts_clip_platform ON published_posts(clip_id, platform);
+      CREATE INDEX idx_published_posts_views ON published_posts(views_count DESC);
+      CREATE INDEX idx_published_posts_likes ON published_posts(likes_count DESC);
+      CREATE INDEX idx_published_posts_last_synced ON published_posts(last_synced_at);
+      CREATE INDEX idx_analytics_snapshots_post_id ON analytics_snapshots(post_id);
+      CREATE INDEX idx_analytics_snapshots_date ON analytics_snapshots(snapshot_date DESC);
+      CREATE INDEX idx_analytics_snapshots_post_date ON analytics_snapshots(post_id, snapshot_date);
     `);
     
     await pool.query(`
       CREATE INDEX idx_published_posts_scheduled ON published_posts(status, scheduled_for) 
       WHERE status = 'scheduled' AND scheduled_for IS NOT NULL;
     `);
-    console.log('✓ Created indexes (25+ total)');
+    console.log('✓ Created indexes (30+ total)');
 
     // Create trigger function
     await pool.query(`
@@ -236,8 +268,8 @@ async function runMigrations() {
     console.log('✓ Created default admin user');
 
     console.log('\n✅ Database setup complete!\n');
-    console.log('📋 Tables: users, sessions, tokens, videos, clips, platform_connections, published_posts');
-    console.log('📊 Indexes: 25+ indexes for optimal performance');
+    console.log('📋 Tables: users, sessions, tokens, videos, clips, platform_connections, published_posts, analytics_snapshots');
+    console.log('📊 Indexes: 30+ indexes for optimal performance');
     console.log('⚡ Triggers: 5 auto-update triggers\n');
     console.log('⚠️  IMPORTANT: Run "node scripts/createAdmin.js" to set up your admin account');
     console.log('   This will remove all existing admins and create a new one with proper credentials.\n');

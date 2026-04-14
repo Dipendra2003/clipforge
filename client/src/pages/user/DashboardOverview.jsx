@@ -962,6 +962,38 @@ function DashboardOverview() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none"
               />
               
+              {/* Platform Support Notice */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-blue-900 mb-2">
+                  ✅ Supported Platforms:
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-blue-700 mb-3">
+                  <div className="flex items-center gap-1">
+                    <span className="text-red-500">▶️</span> YouTube
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-pink-500">📷</span> Instagram
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-black">🎵</span> TikTok
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-500">🎬</span> Vimeo
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600">🌐</span> Dailymotion
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sky-500">🐦</span> Twitter/X
+                  </div>
+                </div>
+                <div className="bg-red-50 border border-red-300 rounded-lg p-2">
+                  <p className="text-xs text-red-800">
+                    <span className="font-semibold">❌ Facebook Not Supported:</span> Facebook blocks automated downloads. Please download the video manually and use the "Manual Upload" tab instead.
+                  </p>
+                </div>
+              </div>
+              
               {/* Progress Indicator */}
               {processing && (
                 <div className="p-4 bg-purple-50 rounded-lg border-2 border-purple-200">

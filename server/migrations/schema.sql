@@ -178,6 +178,15 @@ CREATE TABLE published_posts (
     error_message TEXT,
     scheduled_for TIMESTAMP, -- IST timestamp when the post should be published
     is_scheduled BOOLEAN DEFAULT FALSE, -- Whether this post is scheduled for future publishing
+    -- Analytics columns
+    views_count INTEGER DEFAULT 0,
+    likes_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0,
+    shares_count INTEGER DEFAULT 0,
+    watch_time_seconds INTEGER DEFAULT 0,
+    avg_view_duration DECIMAL(5,2) DEFAULT 0,
+    click_through_rate DECIMAL(5,2) DEFAULT 0,
+    last_synced_at TIMESTAMP,
     metadata JSONB, -- Additional platform-specific data
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -192,6 +201,34 @@ COMMENT ON COLUMN published_posts.caption IS 'Caption/description text posted wi
 COMMENT ON COLUMN published_posts.status IS 'Upload status: pending, uploading, published, failed, scheduled, or cancelled';
 COMMENT ON COLUMN published_posts.scheduled_for IS 'IST timestamp when the post should be published (NULL for immediate posts)';
 COMMENT ON COLUMN published_posts.is_scheduled IS 'Whether this post is scheduled for future publishing';
+COMMENT ON COLUMN published_posts.views_count IS 'Total views from YouTube/Instagram';
+COMMENT ON COLUMN published_posts.likes_count IS 'Total likes from YouTube/Instagram';
+COMMENT ON COLUMN published_posts.comments_count IS 'Total comments from YouTube/Instagram';
+COMMENT ON COLUMN published_posts.shares_count IS 'Total shares from YouTube/Instagram';
+COMMENT ON COLUMN published_posts.watch_time_seconds IS 'Total watch time in seconds';
+COMMENT ON COLUMN published_posts.avg_view_duration IS 'Average view duration in seconds';
+COMMENT ON COLUMN published_posts.click_through_rate IS 'Click-through rate percentage';
+COMMENT ON COLUMN published_posts.last_synced_at IS 'Last time analytics were synced from platform';
+
+-- Analytics snapshots table - stores daily analytics data for time-series analysis
+CREATE TABLE analytics_snapshots (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES published_posts(id) ON DELETE CASCADE,
+    snapshot_date DATE NOT NULL,
+    views_count INTEGER DEFAULT 0,
+    likes_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0,
+    shares_count INTEGER DEFAULT 0,
+    watch_time_seconds INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ensure one snapshot per post per day
+    UNIQUE(post_id, snapshot_date)
+);
+
+COMMENT ON TABLE analytics_snapshots IS 'Daily snapshots of analytics data for time-series analysis';
+COMMENT ON COLUMN analytics_snapshots.post_id IS 'Reference to published post';
+COMMENT ON COLUMN analytics_snapshots.snapshot_date IS 'Date of this snapshot';
 
 -- ============================================
 -- INDEXES FOR PERFORMANCE OPTIMIZATION
@@ -235,6 +272,14 @@ CREATE INDEX idx_published_posts_status ON published_posts(status);
 CREATE INDEX idx_published_posts_created_at ON published_posts(created_at DESC);
 CREATE INDEX idx_published_posts_clip_platform ON published_posts(clip_id, platform);
 CREATE INDEX idx_published_posts_scheduled ON published_posts(status, scheduled_for) WHERE status = 'scheduled' AND scheduled_for IS NOT NULL;
+CREATE INDEX idx_published_posts_views ON published_posts(views_count DESC);
+CREATE INDEX idx_published_posts_likes ON published_posts(likes_count DESC);
+CREATE INDEX idx_published_posts_last_synced ON published_posts(last_synced_at);
+
+-- Analytics snapshots indexes
+CREATE INDEX idx_analytics_snapshots_post_id ON analytics_snapshots(post_id);
+CREATE INDEX idx_analytics_snapshots_date ON analytics_snapshots(snapshot_date DESC);
+CREATE INDEX idx_analytics_snapshots_post_date ON analytics_snapshots(post_id, snapshot_date);
 
 -- ============================================
 -- TRIGGERS FOR AUTO-UPDATE TIMESTAMPS

@@ -520,11 +520,12 @@ export const getClipPosts = async (req, res) => {
   }
 };
 
-// Delete post record (when video deleted from YouTube)
+// Delete post record AND video from YouTube
 export const deletePost = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.id;
+    const { deleteFromPlatform = false } = req.body; // Option to delete from YouTube too
 
     // Get post record
     const post = await PublishedPost.findById(postId);
@@ -537,10 +538,66 @@ export const deletePost = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
+    let deletedFromYouTube = false;
+    let youtubeError = null;
+
+    // Delete from YouTube if requested and video exists
+    if (deleteFromPlatform && post.platform === 'youtube' && post.platform_video_id) {
+      try {
+        // Get YouTube connection
+        const connection = await PlatformConnection.findByUserAndPlatform(userId, 'youtube');
+        
+        if (connection) {
+          // Check if token is expired and refresh if needed
+          let accessToken = connection.access_token;
+          if (PlatformConnection.isTokenExpired(connection)) {
+            const newToken = await refreshYouTubeToken(connection);
+            accessToken = newToken;
+          }
+
+          // Delete video from YouTube
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`
+          );
+
+          oauth2Client.setCredentials({
+            access_token: accessToken
+          });
+
+          const youtube = google.youtube({
+            version: 'v3',
+            auth: oauth2Client
+          });
+
+          // Delete the video
+          await youtube.videos.delete({
+            id: post.platform_video_id
+          });
+
+          deletedFromYouTube = true;
+          logger.info('Video deleted from YouTube', { 
+            postId, 
+            videoId: post.platform_video_id,
+            userId 
+          });
+        }
+      } catch (error) {
+        youtubeError = error.message;
+        logger.error('Failed to delete from YouTube', { 
+          error: error.message,
+          postId,
+          videoId: post.platform_video_id
+        });
+        // Continue to delete record even if YouTube deletion fails
+      }
+    }
+
     // Get clip to update status
     const clip = await Clip.findById(post.clip_id);
     
-    // Delete post record
+    // Delete post record from database
     await PublishedPost.delete(postId);
 
     // Update clip status back to 'completed' so it can be posted again
@@ -552,13 +609,23 @@ export const deletePost = async (req, res) => {
       postId, 
       userId, 
       clipId: post.clip_id,
-      platform: post.platform 
+      platform: post.platform,
+      deletedFromYouTube
     });
+
+    let message = 'Post record deleted successfully. You can now post this clip again.';
+    if (deletedFromYouTube) {
+      message = 'Post deleted from ClipForge and YouTube successfully!';
+    } else if (deleteFromPlatform && youtubeError) {
+      message = `Post record deleted from ClipForge, but failed to delete from YouTube: ${youtubeError}`;
+    }
 
     res.json({ 
       success: true, 
-      message: 'Post deleted successfully. You can now post this clip again.',
-      clipId: post.clip_id
+      message,
+      clipId: post.clip_id,
+      deletedFromYouTube,
+      youtubeError
     });
 
   } catch (error) {

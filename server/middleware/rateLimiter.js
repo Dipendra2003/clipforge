@@ -85,6 +85,20 @@ export default createRateLimiter;
 // Pre-configured limiters for common use cases
 export const apiLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 500, // Increased from 100 to 500 for better development experience
   message: 'Too many requests from this IP, please try again later'
+});
+
+// More generous limiter for analytics endpoints (they're read-only and frequently accessed)
+export const analyticsLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Very generous for analytics
+  message: 'Too many analytics requests, please try again later'
+});
+
+// Strict limiter for auth endpoints
+export const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Strict for security
+  message: 'Too many authentication attempts, please try again later'
 });

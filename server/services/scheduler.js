@@ -191,7 +191,8 @@ async function publishScheduledVideo(post) {
       channelId: connection.platform_user_id
     });
 
-    const videoResponse = await youtube.videos.insert({
+    // Upload with timeout (5 minutes max)
+    const uploadPromise = youtube.videos.insert({
       part: ['snippet', 'status'],
       requestBody: {
         snippet: {
@@ -209,6 +210,12 @@ async function publishScheduledVideo(post) {
         body: fs.createReadStream(clipPath)
       }
     });
+
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Upload timeout after 5 minutes')), 5 * 60 * 1000)
+    );
+
+    const videoResponse = await Promise.race([uploadPromise, timeoutPromise]);
 
     const videoId = videoResponse.data.id;
     const videoUrl = `https://www.youtube.com/shorts/${videoId}`;
@@ -244,7 +251,8 @@ async function publishScheduledVideo(post) {
     logger.error('Scheduled video upload error', { 
       postId: post.id,
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      errorType: error.constructor.name
     });
 
     // Update post record with failure
@@ -253,6 +261,9 @@ async function publishScheduledVideo(post) {
       'failed',
       `Failed to upload: ${error.message}`
     );
+
+    // Reset clip status back to 'ready' so user can retry
+    await Clip.update(post.clip_id, { status: 'ready' });
 
     return { success: false, error: error.message };
   }

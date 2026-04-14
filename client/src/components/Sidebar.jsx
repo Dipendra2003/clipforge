@@ -5,6 +5,7 @@ function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
 
   const navItems = [
+    { path: '/', icon: '🏠', label: 'Home' },
     { path: '/dashboard', icon: '📊', label: 'Dashboard' },
     { path: '/dashboard/videos', icon: '🎬', label: 'My Videos' },
     { path: '/dashboard/clips', icon: '✂️', label: 'Clips' },
@@ -15,6 +16,7 @@ function Sidebar({ isOpen, onClose }) {
   ];
 
   const adminNavItems = [
+    { path: '/', icon: '🏠', label: 'Home' },
     { path: '/admin/dashboard', icon: '👨‍💼', label: 'Admin Dashboard' },
     { path: '/admin/users', icon: '👥', label: 'Users' },
     { path: '/admin/analytics', icon: '📊', label: 'Platform Analytics' },
