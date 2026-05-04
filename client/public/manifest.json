@@ -1,0 +1,17 @@
+{
+  "name": "ClipForge AI - Transform Videos into Viral Clips",
+  "short_name": "ClipForge",
+  "description": "AI-powered video clipping tool that transforms long videos into viral short-form content",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

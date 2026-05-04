@@ -1,0 +1,37 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E0E7FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="120" fill="url(#bgGradient)"/>
+  
+  <!-- Video frame icon -->
+  <rect x="96" y="128" width="320" height="256" rx="24" fill="url(#iconGradient)" opacity="0.2"/>
+  <rect x="96" y="128" width="320" height="256" rx="24" stroke="url(#iconGradient)" stroke-width="8" fill="none"/>
+  
+  <!-- Play button -->
+  <circle cx="256" cy="256" r="64" fill="url(#iconGradient)" opacity="0.9"/>
+  <path d="M236 226 L236 286 L296 256 Z" fill="#8B5CF6"/>
+  
+  <!-- Scissors/Cut icon (representing clipping) -->
+  <g transform="translate(340, 140)">
+    <circle cx="0" cy="0" r="20" fill="#FFFFFF" opacity="0.9"/>
+    <circle cx="0" cy="60" r="20" fill="#FFFFFF" opacity="0.9"/>
+    <line x1="0" y1="20" x2="0" y2="40" stroke="#8B5CF6" stroke-width="6"/>
+    <line x1="-15" y1="30" x2="15" y2="30" stroke="#8B5CF6" stroke-width="6"/>
+  </g>
+  
+  <!-- Sparkle effects -->
+  <circle cx="140" cy="160" r="8" fill="#FFFFFF" opacity="0.8"/>
+  <circle cx="380" cy="340" r="6" fill="#FFFFFF" opacity="0.8"/>
+  <circle cx="160" cy="360" r="10" fill="#FFFFFF" opacity="0.6"/>
+</svg>

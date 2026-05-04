@@ -29,7 +29,7 @@ def is_configured():
         os.getenv('CLOUDINARY_API_SECRET')
     ])
 
-def upload_video(file_path, folder="videos", public_id=None):
+def upload_video(file_path, folder="videos", public_id=None, use_async=False):
     """
     Upload video to Cloudinary
     
@@ -37,6 +37,7 @@ def upload_video(file_path, folder="videos", public_id=None):
         file_path: Local path to video file
         folder: Cloudinary folder name (videos, clips, etc.)
         public_id: Custom public ID (optional)
+        use_async: Use async upload for large files (default: auto-detect)
     
     Returns:
         dict: {
@@ -56,18 +57,38 @@ def upload_video(file_path, folder="videos", public_id=None):
     try:
         print(f"📤 Uploading to Cloudinary: {file_path}")
         
+        # Auto-detect if we should use async based on file size
+        # Files larger than 20MB should use async upload
+        file_size = os.path.getsize(file_path)
+        file_size_mb = file_size / (1024 * 1024)
+        
+        if not use_async and file_size_mb > 20:
+            use_async = True
+            print(f"⚡ File size {file_size_mb:.1f}MB - using async upload")
+        
+        upload_options = {
+            'resource_type': "video",
+            'folder': folder,
+            'public_id': public_id,
+            'overwrite': True,
+            'tags': ["clipforge", folder]
+        }
+        
+        # Add async options for large files
+        if use_async:
+            # For large files, use async upload without eager transformations
+            # This prevents "too large to process synchronously" errors
+            upload_options['eager_async'] = True
+            upload_options['eager'] = []  # Empty eager array for async processing
+        else:
+            # For smaller files, add quality optimizations
+            upload_options['quality'] = "auto"
+            upload_options['fetch_format'] = "auto"
+        
         # Upload video with options
         result = cloudinary.uploader.upload(
             file_path,
-            resource_type="video",
-            folder=folder,
-            public_id=public_id,
-            overwrite=True,
-            # Video optimization options
-            quality="auto",
-            fetch_format="auto",
-            # Add tags for organization
-            tags=["clipforge", folder]
+            **upload_options
         )
         
         print(f"✅ Upload successful: {result['secure_url']}")
@@ -80,14 +101,22 @@ def upload_video(file_path, folder="videos", public_id=None):
             'format': result.get('format', 'mp4'),
             'duration': result.get('duration', 0),
             'bytes': result.get('bytes', 0),
-            'created_at': result.get('created_at', '')
+            'created_at': result.get('created_at', ''),
+            'async_upload': use_async
         }
         
     except Exception as e:
-        print(f"❌ Cloudinary upload error: {e}")
+        error_msg = str(e)
+        print(f"❌ Cloudinary upload error: {error_msg}")
+        
+        # If sync upload failed due to size, retry with async
+        if 'too large' in error_msg.lower() and not use_async:
+            print("⚡ Retrying with async upload...")
+            return upload_video(file_path, folder, public_id, use_async=True)
+        
         return {
             'success': False,
-            'error': str(e)
+            'error': error_msg
         }
 
 def upload_image(file_path, folder="thumbnails", public_id=None):

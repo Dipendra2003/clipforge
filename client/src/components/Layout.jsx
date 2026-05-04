@@ -17,11 +17,17 @@ function Layout() {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">CF</span>
+            <Link to="/" className="flex items-center space-x-2 group">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="4" y="6" width="16" height="12" rx="2" stroke="white" strokeWidth="1.5" fill="none"/>
+                  <circle cx="12" cy="12" r="3" fill="white" opacity="0.9"/>
+                  <path d="M10 10 L10 14 L14 12 Z" fill="#8B5CF6"/>
+                </svg>
               </div>
-              <span className="text-xl font-bold text-gray-900">ClipForge AI</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                ClipForge AI
+              </span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -100,11 +106,17 @@ function Layout() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 mb-12">
             {/* Logo & Description */}
             <div className="lg:col-span-5">
-              <Link to="/" className="flex items-center space-x-2 mb-6 group">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-purple-500/50 transition-shadow">
-                  <span className="text-white font-bold">CF</span>
+              <Link to="/" className="flex items-center space-x-3 mb-6 group">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-2xl group-hover:shadow-purple-500/50 transition-all">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="6" width="16" height="12" rx="2" stroke="white" strokeWidth="1.5" fill="none"/>
+                    <circle cx="12" cy="12" r="3" fill="white" opacity="0.9"/>
+                    <path d="M10 10 L10 14 L14 12 Z" fill="#8B5CF6"/>
+                  </svg>
                 </div>
-                <span className="text-2xl font-bold text-white">ClipForge AI</span>
+                <span className="text-2xl font-bold text-white group-hover:text-purple-300 transition-colors">
+                  ClipForge AI
+                </span>
               </Link>
               <p className="text-gray-400 leading-relaxed mb-6 max-w-md">
                 Transform your long-form videos into viral short-form clips with the power of AI. 

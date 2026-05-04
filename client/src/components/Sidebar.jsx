@@ -48,10 +48,16 @@ function Sidebar({ isOpen, onClose }) {
           {/* Logo */}
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">CF</span>
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="4" y="6" width="16" height="12" rx="2" stroke="white" strokeWidth="1.5" fill="none"/>
+                  <circle cx="12" cy="12" r="3" fill="white" opacity="0.9"/>
+                  <path d="M10 10 L10 14 L14 12 Z" fill="#8B5CF6"/>
+                </svg>
               </div>
-              <span className="text-xl font-bold text-gray-900">ClipForge</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                ClipForge
+              </span>
             </div>
             <button onClick={onClose} className="lg:hidden text-gray-500 hover:text-gray-700">
               ✕

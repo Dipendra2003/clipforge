@@ -20,12 +20,14 @@ warnings.filterwarnings('ignore', message='.*torch.*')
 shutdown_in_progress = False
 
 def signal_handler(sig, frame):
+    """Handle Ctrl+C and termination signals"""
     global shutdown_in_progress
     if not shutdown_in_progress:
         shutdown_in_progress = True
-        print('\n🛑 Shutting down server gracefully...')
+        print('\n Server stopped successfully!\n')
     sys.exit(0)
 
+# Register signal handlers only
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
@@ -63,18 +65,6 @@ def download_video():
     is_tiktok = 'tiktok.com' in url.lower()
     is_facebook = 'facebook.com' in url.lower() or 'fb.watch' in url.lower()
     
-    # Block Facebook downloads with helpful message
-    if is_facebook:
-        return jsonify({
-            "error": "Facebook videos are not supported",
-            "details": "Facebook actively blocks video downloads. Please use one of these alternatives:",
-            "alternatives": [
-                "1. Download the video manually from Facebook and use 'Manual Upload'",
-                "2. Use YouTube, Instagram, TikTok, or Vimeo instead",
-                "3. Share the video to another platform first, then download from there"
-            ]
-        }), 400
-    
     # Map quality to yt-dlp format string
     if is_instagram:
         # Instagram: try multiple format options as fallback
@@ -108,6 +98,8 @@ def download_video():
         "no_warnings": False,
         # Add user agent to avoid bot detection
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        # Add cookies support for Facebook
+        "cookiefile": None,  # Can be set to a cookies file path if needed
         # Additional options to bypass restrictions
         "extractor_args": {
             "youtube": {
@@ -121,6 +113,13 @@ def download_video():
                 "api": ["graphql"]  # Use GraphQL API for Facebook
             }
         },
+        # Add referer for Facebook
+        "http_headers": {
+            "Referer": "https://www.facebook.com/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-us,en;q=0.5",
+            "Sec-Fetch-Mode": "navigate"
+        }
     }
 
     try:
@@ -137,17 +136,22 @@ def download_video():
                 error_str = str(extract_error)
                 print(f"Info extraction failed: {error_str}")
                 
-                # Check if it's a format error (common with Instagram)
+                # Check for specific error types
                 if "Requested format is not available" in error_str:
                     return jsonify({
                         "error": "Video format not available",
-                        "details": "This Instagram video may be private, have restricted access, or the format is not supported. Try a different video or use 'best' quality."
+                        "details": "This video may be private, have restricted access, or the format is not supported. Try a different video or use 'best' quality."
                     }), 400
                 elif "Private video" in error_str or "login" in error_str.lower():
                     return jsonify({
                         "error": "Private or restricted video",
                         "details": "This video requires authentication or is private. Please use a public video."
                     }), 403
+                elif "facebook" in error_str.lower() and ("not available" in error_str.lower() or "unavailable" in error_str.lower()):
+                    return jsonify({
+                        "error": "Facebook video unavailable",
+                        "details": "This Facebook video may be private, deleted, or region-restricted. Please ensure the video is public and accessible."
+                    }), 400
                 else:
                     return jsonify({
                         "error": "Failed to extract video information",
@@ -236,10 +240,20 @@ def serve_video(filename):
         # Check if it's a clip (contains "_clip_" in filename)
         if "_clip_" in filename:
             # Serve from clips subfolder
+            file_path = os.path.join(CLIPS_FOLDER, filename)
+            if not os.path.exists(file_path):
+                print(f"⚠️ Clip not found locally: {file_path}")
+                return jsonify({"error": f"File not found: {filename}. It may have been moved to cloud storage."}), 404
+            
             response = send_from_directory(CLIPS_FOLDER, filename)
             print(f"✅ Serving clip from: {CLIPS_FOLDER}/{filename}")
         else:
             # Serve from main downloads folder (videos, thumbnails, subtitles)
+            file_path = os.path.join(DOWNLOAD_FOLDER, filename)
+            if not os.path.exists(file_path):
+                print(f"⚠️ File not found locally: {file_path}")
+                return jsonify({"error": f"File not found: {filename}. It may have been moved to cloud storage."}), 404
+            
             response = send_from_directory(DOWNLOAD_FOLDER, filename)
             print(f"✅ Serving file from: {DOWNLOAD_FOLDER}/{filename}")
 
@@ -449,19 +463,23 @@ def process_video():
         
         print(f"✅ Processing completed: {len(response['clips'])} clips created")
         
-        # Delete original video file after successful processing (if cloud storage is enabled)
+        # Delete original video file ONLY if it was successfully uploaded to cloud storage
         if results.get('status') == 'completed' and os.environ.get('USE_CLOUD_STORAGE', 'false').lower() == 'true':
-            try:
-                if os.path.exists(video_path):
-                    os.remove(video_path)
-                    print(f"🗑️ Original video deleted: {video_path}")
-                
-                # Also delete metadata file if exists
-                if os.path.exists(metadata_path):
-                    os.remove(metadata_path)
-                    print(f"🗑️ Metadata file deleted: {metadata_path}")
-            except Exception as e:
-                print(f"⚠️ Could not delete original video: {e}")
+            # Only delete if we have a cloud URL (meaning upload was successful)
+            if results.get('video_cloud_url'):
+                try:
+                    if os.path.exists(video_path):
+                        os.remove(video_path)
+                        print(f"🗑️ Original video deleted: {video_path}")
+                    
+                    # Also delete metadata file if exists
+                    if os.path.exists(metadata_path):
+                        os.remove(metadata_path)
+                        print(f"🗑️ Metadata file deleted: {metadata_path}")
+                except Exception as e:
+                    print(f"⚠️ Could not delete original video: {e}")
+            else:
+                print(f"⚠️ Original video NOT deleted - cloud upload failed, keeping local file")
         
         # Note: Frontend will handle saving to database via save-processed endpoint
         # This avoids duplicate entries
@@ -521,9 +539,10 @@ def get_video_info(video_id):
 
 
 if __name__ == "__main__":
-    # Disable reloader to prevent duplicate shutdown messages
-    # Or use use_reloader=False for cleaner shutdown
     print("🚀 Starting ClipForge AI Server on http://127.0.0.1:5001")
     print("📹 Video processing ready!")
     print("Press Ctrl+C to stop\n")
+    
     app.run(debug=True, port=5001, use_reloader=False)
+
+

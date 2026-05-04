@@ -4,6 +4,8 @@ import { Link, Navigate } from 'react-router-dom';
 import toast from '../../utils/toast';
 import { getVideoUrl } from '../../utils/videoUrl';
 import AdvancedOptions from '../../components/AdvancedOptions';
+import { FaYoutube, FaInstagram, FaTiktok, FaVimeoV, FaTwitter, FaFacebook } from 'react-icons/fa';
+import { SiDailymotion } from 'react-icons/si';
 
 function DashboardOverview() {
   const { user, isAdmin } = useAuth();
@@ -153,7 +155,9 @@ function DashboardOverview() {
           });
           
           if (validClips.length > 0) {
-            setGeneratedClips(validClips);
+            // Sort clips by clip number to ensure correct order
+            const sortedClips = [...validClips].sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0));
+            setGeneratedClips(sortedClips);
             setShowClips(true);
           }
         }
@@ -428,13 +432,15 @@ function DashboardOverview() {
         } else {
           console.warn('⚠️ Failed to save to database');
           // If save failed, show the clips from processing response
-          setGeneratedClips(processData.clips);
+          const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+          setGeneratedClips(sortedClips);
           setShowClips(true);
         }
       } catch (saveError) {
         console.error('Database save error:', saveError);
         // On error, show the clips from processing response
-        setGeneratedClips(processData.clips);
+        const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+        setGeneratedClips(sortedClips);
         setShowClips(true);
       }
       
@@ -640,13 +646,15 @@ function DashboardOverview() {
         } else {
           console.warn('⚠️ Failed to save to database');
           // If save failed, show the clips from processing response
-          setGeneratedClips(processData.clips);
+          const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+          setGeneratedClips(sortedClips);
           setShowClips(true);
         }
       } catch (saveError) {
         console.error('Database save error:', saveError);
         // On error, show the clips from processing response
-        setGeneratedClips(processData.clips);
+        const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+        setGeneratedClips(sortedClips);
         setShowClips(true);
       }
       
@@ -967,30 +975,54 @@ function DashboardOverview() {
                 <p className="text-sm font-semibold text-blue-900 mb-2">
                   ✅ Supported Platforms:
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-blue-700 mb-3">
-                  <div className="flex items-center gap-1">
-                    <span className="text-red-500">▶️</span> YouTube
+                {/* Supported Platforms - Improved UI */}
+                <div className="mb-4">               
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* YouTube */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg hover:shadow-md transition-all">
+                      <FaYoutube className="text-xl text-red-600" />
+                      <span className="text-xs font-medium text-red-700">YouTube</span>
+                    </div>
+                    
+                    {/* Instagram */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-pink-50 border border-pink-200 rounded-lg hover:shadow-md transition-all">
+                      <FaInstagram className="text-xl text-pink-600" />
+                      <span className="text-xs font-medium text-pink-700">Instagram</span>
+                    </div>
+                    
+                    {/* TikTok */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg hover:shadow-md transition-all">
+                      <FaTiktok className="text-xl text-gray-900" />
+                      <span className="text-xs font-medium text-gray-700">TikTok</span>
+                    </div>
+                    
+                    {/* Vimeo */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:shadow-md transition-all">
+                      <FaVimeoV className="text-xl text-blue-600" />
+                      <span className="text-xs font-medium text-blue-700">Vimeo</span>
+                    </div>
+                    
+                    {/* Dailymotion */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-cyan-50 border border-cyan-200 rounded-lg hover:shadow-md transition-all">
+                      <SiDailymotion className="text-xl text-cyan-600" />
+                      <span className="text-xs font-medium text-cyan-700">Dailymotion</span>
+                    </div>
+                    
+                    {/* Twitter/X */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 border border-sky-200 rounded-lg hover:shadow-md transition-all">
+                      <FaTwitter className="text-xl text-sky-500" />
+                      <span className="text-xs font-medium text-sky-700">Twitter/X</span>
+                    </div>
+                    
+                    {/* Facebook */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:shadow-md transition-all col-span-2 sm:col-span-3">
+                      <FaFacebook className="text-xl text-blue-600" />
+                      <div className="flex-1">
+                        <span className="text-xs font-medium text-blue-700 block">Facebook</span>
+                        <span className="text-xs text-blue-600">Public videos only • ⚠️ Private/login-required won't work</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-pink-500">📷</span> Instagram
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-black">🎵</span> TikTok
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-blue-500">🎬</span> Vimeo
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-blue-600">🌐</span> Dailymotion
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sky-500">🐦</span> Twitter/X
-                  </div>
-                </div>
-                <div className="bg-red-50 border border-red-300 rounded-lg p-2">
-                  <p className="text-xs text-red-800">
-                    <span className="font-semibold">❌ Facebook Not Supported:</span> Facebook blocks automated downloads. Please download the video manually and use the "Manual Upload" tab instead.
-                  </p>
                 </div>
               </div>
               

@@ -284,16 +284,17 @@ function Demo() {
       
       toast.success(`🎉 Success! Generated ${processData.clips.length} viral clips!`);
       
-      // Store clips for display
-      setGeneratedClips(processData.clips);
+      // Store clips for display (sort by clip number to ensure correct order)
+      const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+      setGeneratedClips(sortedClips);
       setShowClips(true);
       
       console.log('🎬 Clips state updated, showClips:', true);
-      console.log('🎬 generatedClips:', processData.clips);
+      console.log('🎬 generatedClips:', sortedClips);
       
       // Display clip information
-      if (processData.clips.length > 0) {
-        toast.info(`💡 Top clip: "${processData.clips[0].title}" (${processData.clips[0].viralScore.toFixed(2)} viral score)`);
+      if (sortedClips.length > 0) {
+        toast.info(`💡 Top clip: "${sortedClips[0].title}" (${sortedClips[0].viralScore.toFixed(2)} viral score)`);
         
         // Scroll to clips section after a short delay
         setTimeout(() => {
@@ -469,14 +470,15 @@ function Demo() {
       
       toast.success(`🎉 Success! Generated ${processData.clips.length} viral clips!`);
       
-      // Store clips for display
-      setGeneratedClips(processData.clips);
+      // Store clips for display (sort by clip number to ensure correct order)
+      const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+      setGeneratedClips(sortedClips);
       setShowClips(true);
       
       console.log('🎬 Clips state updated, showClips:', true);
       
       // You can now display the clips to the user
-      if (processData.clips.length > 0) {
+      if (sortedClips.length > 0) {
         toast.info(`💡 Top clip: "${processData.clips[0].title}" (${processData.clips[0].viralScore.toFixed(2)} viral score)`);
         
         // Scroll to clips section after a short delay
@@ -524,7 +526,7 @@ function Demo() {
               <video 
                 className="w-full h-full" 
                 controls
-                poster="/demo-thumbnail.jpg"
+                poster="/Clipforge ai.png"
                 onPlay={(e) => {
                   // Pause all other videos when this one plays
                   const allVideos = document.querySelectorAll('video');
@@ -535,8 +537,7 @@ function Demo() {
                   });
                 }}
               >
-                <source src="/demo-video.mp4" type="video/mp4" />
-                <source src="/demo-video.webm" type="video/webm" />
+                <source src="/clipforge_ai.mp4" type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             </div>

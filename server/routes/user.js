@@ -58,11 +58,21 @@ router.get('/dashboard/stats', async (req, res) => {
     );
     const scheduledPosts = parseInt(scheduledPostsResult.rows[0].count);
 
+    // Total views from all published posts
+    const totalViewsResult = await pool.query(
+      `SELECT COALESCE(SUM(views_count), 0) as total_views
+       FROM published_posts 
+       WHERE user_id = $1 
+       AND status = 'published'`,
+      [userId]
+    );
+    const totalViews = parseInt(totalViewsResult.rows[0].total_views);
+
     res.json({
       totalVideos,
       totalClips,
       scheduledPosts,
-      totalViews: 0, // Placeholder for future analytics
+      totalViews,
       recentActivityCount,
       videosByStatus: statusResult.rows
     });

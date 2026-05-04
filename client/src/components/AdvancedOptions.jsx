@@ -127,14 +127,14 @@ function AdvancedOptions({
                 </div>
                 <div className="flex justify-between text-xs text-gray-600 mt-1">
                   <span>30s</span>
-                  <span>1m</span>
-                  <span>1m30s</span>
-                  <span>2m</span>
-                  <span>2m30s</span>
-                  <span>3m</span>
-                  <span>3m30s</span>
-                  <span>4m</span>
-                  <span>4m30s</span>
+                  <span className="hidden sm:inline">1m</span>
+                  <span className="hidden md:inline">1m30s</span>
+                  <span className="hidden sm:inline">2m</span>
+                  <span className="hidden md:inline">2m30s</span>
+                  <span className="hidden sm:inline">3m</span>
+                  <span className="hidden md:inline">3m30s</span>
+                  <span className="hidden sm:inline">4m</span>
+                  <span className="hidden md:inline">4m30s</span>
                   <span>5m</span>
                 </div>
               </div>
@@ -167,14 +167,14 @@ function AdvancedOptions({
                 </div>
                 <div className="flex justify-between text-xs text-gray-600 mt-1">
                   <span>1</span>
-                  <span>2</span>
-                  <span>3</span>
-                  <span>4</span>
-                  <span>5</span>
-                  <span>6</span>
-                  <span>7</span>
-                  <span>8</span>
-                  <span>9</span>
+                  <span className="hidden sm:inline">2</span>
+                  <span className="hidden md:inline">3</span>
+                  <span className="hidden sm:inline">4</span>
+                  <span className="hidden md:inline">5</span>
+                  <span className="hidden sm:inline">6</span>
+                  <span className="hidden md:inline">7</span>
+                  <span className="hidden sm:inline">8</span>
+                  <span className="hidden md:inline">9</span>
                   <span>10</span>
                 </div>
               </div>
@@ -306,14 +306,14 @@ function AdvancedOptions({
                 </div>
                 <div className="flex justify-between text-xs text-gray-600 mt-1">
                   <span>30s</span>
-                  <span>1m</span>
-                  <span>1m30s</span>
-                  <span>2m</span>
-                  <span>2m30s</span>
-                  <span>3m</span>
-                  <span>3m30s</span>
-                  <span>4m</span>
-                  <span>4m30s</span>
+                  <span className="hidden sm:inline">1m</span>
+                  <span className="hidden md:inline">1m30s</span>
+                  <span className="hidden sm:inline">2m</span>
+                  <span className="hidden md:inline">2m30s</span>
+                  <span className="hidden sm:inline">3m</span>
+                  <span className="hidden md:inline">3m30s</span>
+                  <span className="hidden sm:inline">4m</span>
+                  <span className="hidden md:inline">4m30s</span>
                   <span>5m</span>
                 </div>
               </div>
@@ -346,14 +346,14 @@ function AdvancedOptions({
                 </div>
                 <div className="flex justify-between text-xs text-gray-600 mt-1">
                   <span>1</span>
-                  <span>2</span>
-                  <span>3</span>
-                  <span>4</span>
-                  <span>5</span>
-                  <span>6</span>
-                  <span>7</span>
-                  <span>8</span>
-                  <span>9</span>
+                  <span className="hidden sm:inline">2</span>
+                  <span className="hidden md:inline">3</span>
+                  <span className="hidden sm:inline">4</span>
+                  <span className="hidden md:inline">5</span>
+                  <span className="hidden sm:inline">6</span>
+                  <span className="hidden md:inline">7</span>
+                  <span className="hidden sm:inline">8</span>
+                  <span className="hidden md:inline">9</span>
                   <span>10</span>
                 </div>
               </div>
