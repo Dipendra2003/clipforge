@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from '../utils/toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-function PostModal({ clip, onClose, onSuccess }) {
+function PostModal({ clip, onClose, onSuccess, initialPlatform = 'youtube' }) {
   const [title, setTitle] = useState(clip.title || '');
   const [caption, setCaption] = useState('');
   const [generatingCaption, setGeneratingCaption] = useState(false);
@@ -12,6 +12,36 @@ function PostModal({ clip, onClose, onSuccess }) {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform);
+  const [connectedPlatforms, setConnectedPlatforms] = useState([]);
+
+  // Fetch connected platforms on mount
+  useEffect(() => {
+    const fetchConnectedPlatforms = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const response = await axios.get(`${API_URL}/api/platform/connections`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data.connections) {
+          const connected = response.data.connections
+            .filter(conn => !conn.isExpired)
+            .map(conn => conn.platform);
+          setConnectedPlatforms(connected);
+          
+          // If initial platform not connected, switch to first available
+          if (!connected.includes(initialPlatform) && connected.length > 0) {
+            setSelectedPlatform(connected[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch connected platforms:', error);
+      }
+    };
+    
+    fetchConnectedPlatforms();
+  }, [initialPlatform]);
 
   const handleGenerateCaption = async () => {
     setGeneratingCaption(true);
@@ -36,8 +66,9 @@ function PostModal({ clip, onClose, onSuccess }) {
   };
 
   const handlePost = async () => {
-    if (!title.trim()) {
-      toast.error('Title is required');
+    // Validate based on platform
+    if (selectedPlatform === 'youtube' && !title.trim()) {
+      toast.error('Title is required for YouTube');
       return;
     }
 
@@ -46,43 +77,60 @@ function PostModal({ clip, onClose, onSuccess }) {
       return;
     }
 
+    // Instagram doesn't support scheduling yet
+    if (selectedPlatform === 'instagram' && isScheduled) {
+      toast.error('Instagram scheduling is not supported yet');
+      return;
+    }
+
     setPosting(true);
     try {
       const token = localStorage.getItem('accessToken');
       
-      // Prepare request body
+      // Prepare request body based on platform
       const requestBody = {
         clipId: clip.id,
-        title: title.trim(),
-        caption: caption.trim(),
-        privacy: 'public'
+        caption: caption.trim()
       };
 
-      // Add scheduling if enabled
-      if (isScheduled) {
-        // Send IST time as-is (user selected IST time)
-        requestBody.scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
-        requestBody.timezone = 'Asia/Kolkata'; // IST
+      // Add platform-specific fields
+      if (selectedPlatform === 'youtube') {
+        requestBody.title = title.trim();
+        requestBody.privacy = 'public';
+        
+        // Add scheduling if enabled
+        if (isScheduled) {
+          requestBody.scheduledFor = `${scheduledDate}T${scheduledTime}:00`;
+          requestBody.timezone = 'Asia/Kolkata'; // IST
+        }
       }
 
+      // Post to selected platform
+      const endpoint = selectedPlatform === 'youtube' 
+        ? `${API_URL}/api/post/youtube`
+        : `${API_URL}/api/post/instagram`;
+
       const response = await axios.post(
-        `${API_URL}/api/post/youtube`,
+        endpoint,
         requestBody,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
       if (response.data.success) {
+        const platformName = selectedPlatform === 'youtube' ? 'YouTube' : 'Instagram';
+        
         if (response.data.scheduled) {
           const scheduledTime = new Date(response.data.scheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
           toast.success(`Scheduled for ${scheduledTime} IST`);
         } else {
-          toast.success('Posted to YouTube Shorts!');
+          toast.success(`Posted to ${platformName} successfully!`);
         }
         onSuccess(response.data);
         onClose();
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to post to YouTube';
+      const platformName = selectedPlatform === 'youtube' ? 'YouTube' : 'Instagram';
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || `Failed to post to ${platformName}`;
       toast.error(errorMessage);
     } finally {
       setPosting(false);
@@ -102,7 +150,7 @@ function PostModal({ clip, onClose, onSuccess }) {
     >
       <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">Post to YouTube</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Post to Social Media</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -110,6 +158,45 @@ function PostModal({ clip, onClose, onSuccess }) {
             ×
           </button>
         </div>
+
+        {/* Platform Selector */}
+        {connectedPlatforms.length > 1 && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Platform
+            </label>
+            <div className="flex gap-2">
+              {connectedPlatforms.includes('youtube') && (
+                <button
+                  onClick={() => setSelectedPlatform('youtube')}
+                  disabled={posting}
+                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition font-medium ${
+                    selectedPlatform === 'youtube'
+                      ? 'border-red-500 bg-red-50 text-red-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-xl mr-2">▶️</span>
+                  YouTube
+                </button>
+              )}
+              {connectedPlatforms.includes('instagram') && (
+                <button
+                  onClick={() => setSelectedPlatform('instagram')}
+                  disabled={posting}
+                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition font-medium ${
+                    selectedPlatform === 'instagram'
+                      ? 'border-pink-500 bg-pink-50 text-pink-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-xl mr-2">📷</span>
+                  Instagram
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Clip Preview Info */}
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
@@ -126,22 +213,24 @@ function PostModal({ clip, onClose, onSuccess }) {
           </div>
         </div>
 
-        {/* Title Input */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Title <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none"
-            placeholder="Enter video title"
-            maxLength={100}
-            disabled={posting}
-          />
-          <p className="text-xs text-gray-500 mt-1">{title.length}/100 characters</p>
-        </div>
+        {/* Title Input - YouTube only */}
+        {selectedPlatform === 'youtube' && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none"
+              placeholder="Enter video title"
+              maxLength={100}
+              disabled={posting}
+            />
+            <p className="text-xs text-gray-500 mt-1">{title.length}/100 characters</p>
+          </div>
+        )}
 
         {/* Caption Input */}
         <div className="mb-4">
@@ -179,8 +268,9 @@ function PostModal({ clip, onClose, onSuccess }) {
           </p>
         </div>
 
-        {/* Schedule Toggle */}
-        <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+        {/* Schedule Toggle - YouTube only */}
+        {selectedPlatform === 'youtube' && (
+          <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
           <div className="flex items-center gap-3 mb-3">
             <input
               type="checkbox"
@@ -231,6 +321,7 @@ function PostModal({ clip, onClose, onSuccess }) {
             </p>
           )}
         </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3 mt-6">
@@ -243,7 +334,7 @@ function PostModal({ clip, onClose, onSuccess }) {
           </button>
           <button
             onClick={handlePost}
-            disabled={posting || !title.trim() || (isScheduled && (!scheduledDate || !scheduledTime))}
+            disabled={posting || (selectedPlatform === 'youtube' && !title.trim()) || (isScheduled && (!scheduledDate || !scheduledTime))}
             className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {posting ? (
@@ -252,7 +343,11 @@ function PostModal({ clip, onClose, onSuccess }) {
                 {isScheduled ? 'Scheduling...' : 'Posting...'}
               </>
             ) : (
-              <>{isScheduled ? '📅 Schedule Post' : '▶️ Post to YouTube'}</>
+              <>
+                {isScheduled ? '📅 Schedule Post' : (
+                  selectedPlatform === 'youtube' ? '▶️ Post to YouTube' : '📷 Post to Instagram'
+                )}
+              </>
             )}
           </button>
         </div>

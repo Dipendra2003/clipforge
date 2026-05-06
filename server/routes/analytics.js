@@ -3,6 +3,7 @@ import pool from '../config/database.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import { analyticsLimiter } from '../middleware/rateLimiter.js';
 import { syncUserAnalytics } from '../services/youtubeAnalytics.js';
+import { syncUserInstagramAnalytics } from '../services/instagramAnalytics.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -19,11 +20,12 @@ router.get('/overview', async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get total views, likes, comments, shares from all published posts
+    // Get total views, likes, comments, shares, dislikes from all published posts
     const totalsResult = await pool.query(`
       SELECT 
         COALESCE(SUM(views_count), 0) as total_views,
         COALESCE(SUM(likes_count), 0) as total_likes,
+        COALESCE(SUM(dislikes_count), 0) as total_dislikes,
         COALESCE(SUM(comments_count), 0) as total_comments,
         COALESCE(SUM(shares_count), 0) as total_shares,
         COUNT(*) as total_posts
@@ -59,6 +61,7 @@ router.get('/overview', async (req, res) => {
       SELECT 
         COALESCE(SUM(views_count), 0) as views,
         COALESCE(SUM(likes_count), 0) as likes,
+        COALESCE(SUM(dislikes_count), 0) as dislikes,
         COALESCE(SUM(comments_count), 0) as comments
       FROM published_posts
       WHERE user_id = $1
@@ -71,6 +74,7 @@ router.get('/overview', async (req, res) => {
       SELECT 
         COALESCE(SUM(views_count), 0) as views,
         COALESCE(SUM(likes_count), 0) as likes,
+        COALESCE(SUM(dislikes_count), 0) as dislikes,
         COALESCE(SUM(comments_count), 0) as comments
       FROM published_posts
       WHERE user_id = $1
@@ -92,6 +96,7 @@ router.get('/overview', async (req, res) => {
 
     const viewsChange = calculateChange(currentPeriod.views, previousPeriod.views);
     const likesChange = calculateChange(currentPeriod.likes, previousPeriod.likes);
+    const dislikesChange = calculateChange(currentPeriod.dislikes, previousPeriod.dislikes);
     const commentsChange = calculateChange(currentPeriod.comments, previousPeriod.comments);
 
     // Get last sync time
@@ -106,6 +111,7 @@ router.get('/overview', async (req, res) => {
     res.json({
       totalViews: parseInt(totals.total_views),
       totalLikes: parseInt(totals.total_likes),
+      totalDislikes: parseInt(totals.total_dislikes),
       totalComments: parseInt(totals.total_comments),
       totalShares: parseInt(totals.total_shares),
       totalPosts: parseInt(totals.total_posts),
@@ -113,6 +119,7 @@ router.get('/overview', async (req, res) => {
       changes: {
         views: parseFloat(viewsChange),
         likes: parseFloat(likesChange),
+        dislikes: parseFloat(dislikesChange),
         comments: parseFloat(commentsChange)
       },
       lastSyncedAt: lastSync,
@@ -296,16 +303,33 @@ router.get('/platform', async (req, res) => {
       ? ((youtubeEngagements / youtubeViews) * 100).toFixed(2)
       : 0;
 
-    // Instagram stats (placeholder for future)
-    const instagram = {
-      posts_count: 0,
-      total_views: 0,
-      total_likes: 0,
-      total_comments: 0,
-      total_shares: 0,
-      avg_views: 0,
-      avg_likes: 0
-    };
+    // Get Instagram stats
+    const instagramResult = await pool.query(`
+      SELECT 
+        COUNT(*) as posts_count,
+        COALESCE(SUM(views_count), 0) as total_views,
+        COALESCE(SUM(likes_count), 0) as total_likes,
+        COALESCE(SUM(comments_count), 0) as total_comments,
+        COALESCE(SUM(shares_count), 0) as total_shares,
+        COALESCE(AVG(views_count), 0) as avg_views,
+        COALESCE(AVG(likes_count), 0) as avg_likes
+      FROM published_posts
+      WHERE user_id = $1
+      AND platform = 'instagram'
+      AND status = 'published'
+      AND platform_video_id IS NOT NULL
+    `, [userId]);
+
+    const instagram = instagramResult.rows[0];
+    const instagramViews = parseInt(instagram.total_views);
+    const instagramLikes = parseInt(instagram.total_likes);
+    const instagramComments = parseInt(instagram.total_comments);
+    const instagramShares = parseInt(instagram.total_shares);
+    const instagramSaved = 0; // Will be populated after migration
+    const instagramEngagements = instagramLikes + instagramComments + instagramShares + instagramSaved;
+    const instagramEngagementRate = instagramViews > 0 
+      ? ((instagramEngagements / instagramViews) * 100).toFixed(2)
+      : 0;
 
     res.json({
       youtube: {
@@ -320,13 +344,15 @@ router.get('/platform', async (req, res) => {
       },
       instagram: {
         postsCount: parseInt(instagram.posts_count),
-        totalViews: parseInt(instagram.total_views),
-        totalLikes: parseInt(instagram.total_likes),
-        totalComments: parseInt(instagram.total_comments),
-        totalShares: parseInt(instagram.total_shares),
+        totalViews: instagramViews,
+        totalLikes: instagramLikes,
+        totalComments: instagramComments,
+        totalShares: instagramShares,
+        totalReach: 0, // Will be populated after migration
+        totalSaved: instagramSaved,
         avgViews: parseFloat(instagram.avg_views).toFixed(0),
         avgLikes: parseFloat(instagram.avg_likes).toFixed(0),
-        engagementRate: 0
+        engagementRate: parseFloat(instagramEngagementRate)
       }
     });
 
@@ -338,7 +364,7 @@ router.get('/platform', async (req, res) => {
 
 /**
  * POST /api/analytics/sync
- * Manually trigger analytics sync
+ * Manually trigger analytics sync for all connected platforms
  */
 router.post('/sync', async (req, res) => {
   try {
@@ -346,20 +372,44 @@ router.post('/sync', async (req, res) => {
 
     logger.info('Manual analytics sync triggered', { userId });
 
-    const result = await syncUserAnalytics(userId);
+    // Sync YouTube
+    const youtubeResult = await syncUserAnalytics(userId);
+    
+    // Sync Instagram
+    const instagramResult = await syncUserInstagramAnalytics(userId);
 
-    if (result.success) {
+    // Calculate totals
+    const totalSynced = (youtubeResult.synced || 0) + (instagramResult.synced || 0);
+    const totalFailed = (youtubeResult.failed || 0) + (instagramResult.failed || 0);
+    const totalPosts = (youtubeResult.total || 0) + (instagramResult.total || 0);
+
+    // Check if at least one platform succeeded
+    const overallSuccess = youtubeResult.success || instagramResult.success;
+
+    if (overallSuccess) {
+      const platforms = [];
+      if (youtubeResult.success && youtubeResult.synced > 0) platforms.push('YouTube');
+      if (instagramResult.success && instagramResult.synced > 0) platforms.push('Instagram');
+
       res.json({
         success: true,
-        message: `Analytics synced successfully. Updated ${result.synced} posts.`,
-        synced: result.synced,
-        failed: result.failed,
-        total: result.total
+        message: `Analytics synced successfully. Updated ${totalSynced} posts across ${platforms.join(' and ')}.`,
+        synced: totalSynced,
+        failed: totalFailed,
+        total: totalPosts,
+        details: {
+          youtube: youtubeResult,
+          instagram: instagramResult
+        }
       });
     } else {
       res.status(400).json({
         success: false,
-        message: result.message || 'Failed to sync analytics'
+        message: 'Failed to sync analytics. Please ensure platforms are connected.',
+        details: {
+          youtube: youtubeResult,
+          instagram: instagramResult
+        }
       });
     }
 
@@ -650,10 +700,24 @@ router.get('/ai-insights', async (req, res) => {
 
     // Generate AI insights using Gemini with retry logic
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
+    
+    if (!process.env.GEMINI_API_KEY) {
+      logger.error('Gemini API key not configured');
+      return res.status(500).json({ message: 'AI insights not configured' });
+    }
 
-    const prompt = `You are an expert YouTube Shorts analytics consultant. Analyze this performance data and provide actionable insights.
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ 
+      model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp',
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    const prompt = `You are an expert YouTube Shorts and Instagram Reels analytics consultant. Analyze this performance data and provide actionable insights.
 
 Analytics Data:
 - Total Views: ${analyticsContext.totalViews.toLocaleString()}
@@ -680,10 +744,11 @@ Provide a JSON response with these insights:
 
 Keep insights specific, actionable, and encouraging. Focus on data-driven recommendations.`;
 
-    // Retry logic for API calls
+    // Retry logic for API calls with exponential backoff
     let result;
     let lastError;
     const maxRetries = 3;
+    const baseDelay = 2000; // 2 seconds
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -692,23 +757,68 @@ Keep insights specific, actionable, and encouraging. Focus on data-driven recomm
       } catch (error) {
         lastError = error;
         
-        // Check if it's a 503 (service unavailable) error
-        if (error.message?.includes('503') || error.message?.includes('high demand')) {
-          if (attempt < maxRetries) {
-            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
-            logger.info(`Gemini API retry attempt ${attempt}/${maxRetries} after ${delay}ms`, { userId: req.user.id });
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
+        // Check if it's a retryable error (503, 429, or network errors)
+        const isRetryable = 
+          error.message?.includes('503') || 
+          error.message?.includes('429') ||
+          error.message?.includes('high demand') ||
+          error.message?.includes('overloaded') ||
+          error.message?.includes('ECONNRESET') ||
+          error.message?.includes('ETIMEDOUT');
+        
+        if (isRetryable && attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff: 2s, 4s, 8s
+          logger.info(`Gemini API retry attempt ${attempt}/${maxRetries} after ${delay}ms`, { 
+            userId: req.user.id,
+            error: error.message 
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
         
-        // For other errors or final retry, throw
-        throw error;
+        // For non-retryable errors or final retry, break
+        break;
       }
     }
     
     if (!result) {
-      throw lastError || new Error('Failed to generate AI insights after retries');
+      logger.error('Failed to generate AI insights after retries', { 
+        userId: req.user.id,
+        error: lastError?.message 
+      });
+      
+      // Return fallback insights
+      const fallbackInsights = {
+        performanceSummary: `You have ${analyticsContext.totalPosts} published clips with ${analyticsContext.totalViews.toLocaleString()} total views and ${analyticsContext.engagementRate}% engagement rate. Your content is reaching an audience and generating interactions.`,
+        strengths: [
+          'Content is being published consistently',
+          'Audience is engaging with your content',
+          analyticsContext.engagementRate > 3 ? 'Strong engagement rate above industry average' : 'Building audience engagement'
+        ],
+        improvements: [
+          'Analyze top performing content patterns and replicate success',
+          'Optimize posting schedule based on audience activity',
+          'Experiment with different content formats and hooks'
+        ],
+        contentRecommendations: [
+          'Create more content similar to your top performers',
+          'Focus on emotionally engaging content with strong hooks in first 3 seconds',
+          'Test different video lengths and formats to find what resonates'
+        ],
+        bestPostingStrategy: bestPostingTime 
+          ? `Post on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][bestPostingTime.dayOfWeek]} around ${bestPostingTime.hour}:00 for best results`
+          : 'Post consistently 3-5 times per week and track which times get the most engagement',
+        viralPotential: analyticsContext.engagementRate > 5 
+          ? 'High viral potential - focus on creating emotionally engaging content with strong hooks and clear value proposition'
+          : 'Growing viral potential - improve hooks, pacing, and emotional resonance to increase shareability'
+      };
+
+      return res.json({
+        insights: fallbackInsights,
+        analyticsContext,
+        generatedAt: new Date().toISOString(),
+        fallback: true
+      });
     }
 
     const response = result.response;
@@ -722,7 +832,11 @@ Keep insights specific, actionable, and encouraging. Focus on data-driven recomm
       const jsonText = jsonMatch ? jsonMatch[1] : text;
       insights = JSON.parse(jsonText);
     } catch (parseError) {
-      logger.error('Failed to parse AI insights JSON', { error: parseError.message });
+      logger.error('Failed to parse AI insights JSON', { 
+        error: parseError.message,
+        userId: req.user.id 
+      });
+      
       // Fallback to basic insights
       insights = {
         performanceSummary: `You have ${analyticsContext.totalPosts} published clips with ${analyticsContext.totalViews.toLocaleString()} total views and ${analyticsContext.engagementRate}% engagement rate.`,

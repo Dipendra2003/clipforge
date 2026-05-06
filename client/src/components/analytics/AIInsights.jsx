@@ -61,7 +61,7 @@ function AIInsights() {
         <span className="text-3xl">🤖</span>
         <div>
           <h2 className="text-xl font-bold text-gray-900">AI-Powered Insights</h2>
-          <p className="text-sm text-gray-600">Powered by Gemini AI</p>
+          <p className="text-sm text-gray-600">Powered by ClipForge AI</p>
         </div>
       </div>
 

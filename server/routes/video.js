@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/authMiddleware.js';
 import Video from '../models/Video.js';
 import Clip from '../models/Clip.js';
 import axios from 'axios';
+import { notifyProcessingComplete } from '../services/notificationService.js';
 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -48,7 +49,18 @@ router.post('/save-processed', async (req, res) => {
   try {
     const { videoId, userId, sourceUrl, videoInfo, clips, subtitleUrl, thumbnailUrl, thumbnailCloudUrl, videoCloudUrl, videoCloudinaryPublicId } = req.body;
 
+    console.log('💾 Received save-processed request:', {
+      videoId,
+      userId,
+      sourceUrl,
+      clipsCount: clips?.length || 0,
+      hasVideoInfo: !!videoInfo,
+      hasThumbnailCloudUrl: !!thumbnailCloudUrl,
+      hasVideoCloudUrl: !!videoCloudUrl
+    });
+
     if (!userId) {
+      console.error('❌ User ID missing in save-processed request');
       return res.status(400).json({ error: 'User ID required' });
     }
 
@@ -160,6 +172,8 @@ router.post('/save-processed', async (req, res) => {
       });
       savedClips.push(savedClip);
     }
+
+    console.log(`✅ Successfully saved video and ${savedClips.length} clips to database`);
 
     res.json({
       success: true,
@@ -274,6 +288,16 @@ router.post('/process/:videoId', authenticate, async (req, res) => {
         });
         clips.push(clip);
       }
+
+      // Send email notification (async, don't wait)
+      notifyProcessingComplete(
+        req.user.id,
+        video.title,
+        clips.length
+      ).catch(err => {
+        console.error('Failed to send processing complete notification:', err);
+        // Don't fail the request if email fails
+      });
 
       res.json({
         success: true,

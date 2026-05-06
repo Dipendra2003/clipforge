@@ -81,32 +81,32 @@ function ContentBreakdown({ topClips }) {
     .sort(([, a], [, b]) => b.avgViews - a.avgViews)[0];
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 mb-8">
-      <h2 className="text-xl font-bold text-gray-900 mb-4">🎬 Content Performance Breakdown</h2>
+    <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6 mb-6 sm:mb-8">
+      <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">🎬 Content Performance Breakdown</h2>
       
       {/* Emotion Analysis */}
       {sortedEmotions.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">Performance by Emotion</h3>
-          <div className="space-y-3">
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Performance by Emotion</h3>
+          <div className="space-y-2 sm:space-y-3">
             {sortedEmotions.map(([emotion, data], index) => (
-              <div key={emotion} className="flex items-center space-x-3">
-                <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <span className="text-lg">{emotionIcons[emotion.toLowerCase()] || '🎭'}</span>
+              <div key={emotion} className="flex items-center space-x-2 sm:space-x-3">
+                <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <span className="text-base sm:text-lg">{emotionIcons[emotion.toLowerCase()] || '🎭'}</span>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-700 capitalize">{emotion}</span>
-                    <span className="text-xs text-gray-500">{data.count} clips</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5 sm:mb-1">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700 capitalize truncate">{emotion}</span>
+                    <span className="text-xs text-gray-500 ml-2 flex-shrink-0">{data.count} clips</span>
                   </div>
-                  <div className="flex items-center space-x-4 text-xs text-gray-600">
-                    <span>👁️ {data.avgViews.toLocaleString()} avg views</span>
-                    <span>❤️ {data.avgLikes.toLocaleString()} avg likes</span>
-                    <span>📊 {data.avgEngagement}% engagement</span>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-600">
+                    <span className="whitespace-nowrap">👁️ {data.avgViews.toLocaleString()}</span>
+                    <span className="whitespace-nowrap">❤️ {data.avgLikes.toLocaleString()}</span>
+                    <span className="whitespace-nowrap">📊 {data.avgEngagement}%</span>
                   </div>
                 </div>
                 {index === 0 && (
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+                  <span className="px-2 py-0.5 sm:py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded flex-shrink-0">
                     Best
                   </span>
                 )}
@@ -118,30 +118,30 @@ function ContentBreakdown({ topClips }) {
 
       {/* Duration Analysis */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Performance by Duration</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Performance by Duration</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {Object.entries(durationRanges).map(([range, data]) => {
             const isBest = range === bestDuration[0];
             return (
               <div 
                 key={range}
-                className={`p-4 rounded-lg border-2 ${
+                className={`p-3 sm:p-4 rounded-lg border-2 ${
                   isBest 
                     ? 'bg-green-50 border-green-300' 
                     : 'bg-gray-50 border-gray-200'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className={`text-sm font-semibold ${isBest ? 'text-green-900' : 'text-gray-700'}`}>
+                <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                  <p className={`text-xs sm:text-sm font-semibold ${isBest ? 'text-green-900' : 'text-gray-700'}`}>
                     {range}
                   </p>
                   {isBest && (
-                    <span className="px-2 py-0.5 bg-green-200 text-green-800 text-xs font-bold rounded">
+                    <span className="px-1.5 sm:px-2 py-0.5 bg-green-200 text-green-800 text-xs font-bold rounded">
                       ⭐ Best
                     </span>
                   )}
                 </div>
-                <p className={`text-2xl font-bold mb-1 ${isBest ? 'text-green-900' : 'text-gray-900'}`}>
+                <p className={`text-xl sm:text-2xl font-bold mb-0.5 sm:mb-1 ${isBest ? 'text-green-900' : 'text-gray-900'}`}>
                   {data.avgViews.toLocaleString()}
                 </p>
                 <p className={`text-xs ${isBest ? 'text-green-600' : 'text-gray-500'}`}>
@@ -154,12 +154,12 @@ function ContentBreakdown({ topClips }) {
       </div>
 
       {/* Insights */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-        <div className="flex items-start space-x-3">
-          <span className="text-2xl">💡</span>
+      <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+        <div className="flex items-start space-x-2 sm:space-x-3">
+          <span className="text-xl sm:text-2xl">💡</span>
           <div>
-            <p className="font-semibold text-gray-900 mb-1">Content Strategy Tip</p>
-            <p className="text-sm text-gray-700">
+            <p className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">Content Strategy Tip</p>
+            <p className="text-xs sm:text-sm text-gray-700">
               {sortedEmotions.length > 0 && (
                 <>
                   Your <span className="font-semibold text-purple-600 capitalize">{sortedEmotions[0][0]}</span> content performs best.{' '}

@@ -17,6 +17,16 @@ router.get('/youtube', authenticateWithQuery, apiLimiter, platformController.ini
 router.get('/youtube/callback', platformController.youtubeCallback);
 
 // ============================================
+// INSTAGRAM OAUTH ROUTES
+// ============================================
+
+// Initiate Instagram OAuth flow (accepts token from query or header)
+router.get('/instagram', authenticateWithQuery, apiLimiter, platformController.initiateInstagramAuth);
+
+// Instagram OAuth callback (NO authentication - user coming from Facebook)
+router.get('/instagram/callback', platformController.instagramCallback);
+
+// ============================================
 // PLATFORM CONNECTION MANAGEMENT
 // ============================================
 

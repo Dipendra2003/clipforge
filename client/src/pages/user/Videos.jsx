@@ -245,6 +245,16 @@ function Videos() {
                         >
                           View Details
                         </button>
+                        {/* View Analytics Button - Shows clips analytics */}
+                        {video.clips_count > 0 && (
+                          <button 
+                            onClick={() => navigate(`/dashboard/videos/${video.id}#clips`)}
+                            className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition text-sm font-medium flex items-center justify-center gap-2"
+                            title="View clips analytics"
+                          >
+                            📊 View Clips Analytics
+                          </button>
+                        )}
                         <div className="flex gap-2">
                           <button 
                             onClick={() => handleEditVideo(video)}

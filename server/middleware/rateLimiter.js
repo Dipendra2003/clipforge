@@ -102,3 +102,10 @@ export const authLimiter = createRateLimiter({
   max: 20, // Strict for security
   message: 'Too many authentication attempts, please try again later'
 });
+
+// Contact form limiter (prevent spam)
+export const contactLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 submissions per hour
+  message: 'Too many contact form submissions. Please try again later.'
+});

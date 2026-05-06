@@ -22,6 +22,7 @@ function Analytics() {
   const [analyticsData, setAnalyticsData] = useState({
     totalViews: 0,
     totalLikes: 0,
+    totalDislikes: 0,
     totalComments: 0,
     totalShares: 0,
     totalPosts: 0,
@@ -29,6 +30,7 @@ function Analytics() {
     changes: {
       views: 0,
       likes: 0,
+      dislikes: 0,
       comments: 0
     },
     lastSyncedAt: null,
@@ -36,7 +38,30 @@ function Analytics() {
   });
 
   const [topClips, setTopClips] = useState([]);
-  const [platformData, setPlatformData] = useState(null);
+  const [platformData, setPlatformData] = useState({
+    youtube: {
+      postsCount: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: 0,
+      avgViews: '0',
+      avgLikes: '0',
+      engagementRate: 0
+    },
+    instagram: {
+      postsCount: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: 0,
+      totalReach: 0,
+      totalSaved: 0,
+      avgViews: '0',
+      avgLikes: '0',
+      engagementRate: 0
+    }
+  });
   const [timeSeriesData, setTimeSeriesData] = useState([]);
   const [dateRange, setDateRange] = useState(30); // Default 30 days
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
@@ -45,11 +70,6 @@ function Analytics() {
   useEffect(() => {
     fetchAnalyticsData();
   }, []);
-
-  // Fetch time-series data when date range changes
-  useEffect(() => {
-    fetchTimeSeriesData();
-  }, [dateRange]);
 
   const fetchTimeSeriesData = async () => {
     try {
@@ -71,6 +91,12 @@ function Analytics() {
     }
   };
 
+  // Fetch time-series data when date range changes
+  useEffect(() => {
+    fetchTimeSeriesData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
+
   const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
@@ -83,42 +109,42 @@ function Analytics() {
         return;
       }
 
-      // Fetch overview data
-      const overviewResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/overview`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      // Fetch all analytics data in parallel for better performance
+      const [overviewResponse, clipsResponse, platformResponse] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/api/analytics/overview`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/analytics/top-clips?limit=10`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/analytics/platform`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
 
+      // Handle overview data
       if (!overviewResponse.ok) {
-        throw new Error('Failed to fetch analytics');
+        throw new Error('Failed to fetch analytics overview');
       }
-
       const overviewData = await overviewResponse.json();
       setAnalyticsData(overviewData);
 
-      // Fetch top clips
-      const clipsResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/top-clips?limit=5`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
+      // Handle clips data
       if (clipsResponse.ok) {
         const clipsData = await clipsResponse.json();
         setTopClips(clipsData.clips || []);
+      } else {
+        console.warn('Failed to fetch top clips');
+        setTopClips([]);
       }
 
-      // Fetch platform data
-      const platformResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/platform`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
+      // Handle platform data
       if (platformResponse.ok) {
         const platformData = await platformResponse.json();
         setPlatformData(platformData);
+      } else {
+        console.warn('Failed to fetch platform data');
+        // Keep default platform data structure instead of setting to null
       }
 
       setLoading(false);
@@ -126,6 +152,7 @@ function Analytics() {
       console.error('Analytics fetch error:', err);
       setError(err.message);
       setLoading(false);
+      toast.error('Failed to load analytics data');
     }
   };
 
@@ -241,8 +268,16 @@ function Analytics() {
       label: 'Total Likes', 
       value: formatNumber(analyticsData.totalLikes), 
       change: analyticsData.changes.likes >= 0 ? `+${analyticsData.changes.likes}%` : `${analyticsData.changes.likes}%`,
-      icon: '❤️',
+      icon: '👍',
       trend: analyticsData.changes.likes >= 0 ? 'up' : 'down'
+    },
+    { 
+      label: 'Total Dislikes', 
+      value: formatNumber(analyticsData.totalDislikes || 0), 
+      change: (analyticsData.changes?.dislikes !== undefined && analyticsData.changes.dislikes >= 0) ? `+${analyticsData.changes.dislikes}%` : `${analyticsData.changes?.dislikes || 0}%`,
+      icon: '👎',
+      trend: (analyticsData.changes?.dislikes || 0) >= 0 ? 'down' : 'up', // Inverted: more dislikes = bad
+      isNegative: true // Mark as negative metric
     },
     { 
       label: 'Total Comments', 
@@ -349,35 +384,36 @@ function Analytics() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       {/* Header with Sync Button */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6">
+        <div className="w-full sm:w-auto">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Analytics</h1>
           {analyticsData.lastSyncedAt && (
-            <div className="flex items-center space-x-2 mt-1">
-              <p className="text-sm text-gray-500">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500">
                 Last synced: {formatDate(analyticsData.lastSyncedAt)}
               </p>
               <span className="text-xs text-gray-400">•</span>
-              <p className="text-sm text-purple-600 font-medium">
+              <p className="text-xs sm:text-sm text-purple-600 font-medium">
                 {getTimeSinceSync(analyticsData.lastSyncedAt)}
               </p>
             </div>
           )}
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center space-x-2"
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition flex items-center justify-center gap-2 text-sm"
           >
             <span>📥</span>
-            <span>Export CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
           </button>
           <button
             onClick={handleSyncAnalytics}
             disabled={syncing}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
           >
             {syncing ? (
               <>
@@ -385,16 +421,18 @@ function Analytics() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>
+                <span className="hidden sm:inline">
                   {syncProgress.total > 0 
                     ? `Syncing ${syncProgress.current}/${syncProgress.total}...` 
                     : 'Syncing...'}
                 </span>
+                <span className="sm:hidden">Syncing...</span>
               </>
             ) : (
               <>
                 <span>🔄</span>
-                <span>Sync Now</span>
+                <span className="hidden sm:inline">Sync Now</span>
+                <span className="sm:hidden">Sync</span>
               </>
             )}
           </button>
@@ -402,94 +440,123 @@ function Analytics() {
       </div>
 
       {/* Overview Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6 mb-6 sm:mb-8">
         {metrics.map((metric) => (
-          <div key={metric.label} className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">{metric.icon}</span>
-              <span className={`text-sm font-medium ${
-                metric.trend === 'up' ? 'text-green-600' : 
-                metric.trend === 'down' ? 'text-red-600' : 
-                'text-gray-600'
+          <div key={metric.label} className="bg-white rounded-lg sm:rounded-xl shadow p-3 sm:p-6">
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
+              <span className="text-xl sm:text-2xl">{metric.icon}</span>
+              <span className={`text-xs sm:text-sm font-medium ${
+                metric.isNegative 
+                  ? (metric.trend === 'up' ? 'text-green-600' : metric.trend === 'down' ? 'text-red-600' : 'text-gray-600')
+                  : (metric.trend === 'up' ? 'text-green-600' : metric.trend === 'down' ? 'text-red-600' : 'text-gray-600')
               }`}>
                 {metric.change}
               </span>
             </div>
-            <p className="text-sm text-gray-600">{metric.label}</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{metric.value}</p>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">{metric.label}</p>
+            <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{metric.value}</p>
+            {metric.label === 'Total Dislikes' && (
+              <p className="text-xs text-gray-400 mt-1" title="YouTube removed public dislike counts in 2021">
+                ℹ️ Not available
+              </p>
+            )}
           </div>
         ))}
       </div>
 
       {/* Platform Performance */}
-      {platformData && (
-        <div className="bg-white rounded-xl shadow p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Performance by Platform</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6 mb-6 sm:mb-8">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Performance by Platform</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* YouTube */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xl">▶️</span>
+            <div className="border border-gray-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-lg sm:text-xl">▶️</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">YouTube</h3>
-                  <p className="text-sm text-gray-500">{platformData.youtube.postsCount} posts</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 text-sm sm:text-base">YouTube</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">{platformData.youtube.postsCount} posts</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Views</span>
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Total Views</span>
                   <span className="font-semibold">{formatNumber(platformData.youtube.totalViews)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Likes</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Total Likes</span>
                   <span className="font-semibold">{formatNumber(platformData.youtube.totalLikes)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Avg Views/Post</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Avg Views/Post</span>
                   <span className="font-semibold">{platformData.youtube.avgViews}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Engagement Rate</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Engagement Rate</span>
                   <span className="font-semibold">{platformData.youtube.engagementRate}%</span>
                 </div>
               </div>
             </div>
 
-            {/* Instagram (Placeholder) */}
-            <div className="border border-gray-200 rounded-lg p-4 opacity-50">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xl">📷</span>
+            {/* Instagram */}
+            <div className={`border border-gray-200 rounded-lg p-3 sm:p-4 ${platformData.instagram.postsCount === 0 ? 'opacity-50' : ''}`}>
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-pink-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-lg sm:text-xl">📷</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Instagram</h3>
-                  <p className="text-sm text-gray-500">Coming soon</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Instagram</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    {platformData.instagram.postsCount > 0 
+                      ? `${platformData.instagram.postsCount} posts` 
+                      : 'No posts yet'}
+                  </p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Views</span>
-                  <span className="font-semibold">-</span>
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Total Views</span>
+                  <span className="font-semibold">
+                    {platformData.instagram.postsCount > 0 
+                      ? formatNumber(platformData.instagram.totalViews) 
+                      : '-'}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Likes</span>
-                  <span className="font-semibold">-</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Total Likes</span>
+                  <span className="font-semibold">
+                    {platformData.instagram.postsCount > 0 
+                      ? formatNumber(platformData.instagram.totalLikes) 
+                      : '-'}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Avg Views/Post</span>
-                  <span className="font-semibold">-</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Avg Views/Post</span>
+                  <span className="font-semibold">
+                    {platformData.instagram.postsCount > 0 
+                      ? platformData.instagram.avgViews 
+                      : '-'}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Engagement Rate</span>
-                  <span className="font-semibold">-</span>
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Engagement Rate</span>
+                  <span className="font-semibold">
+                    {platformData.instagram.postsCount > 0 
+                      ? `${platformData.instagram.engagementRate}%` 
+                      : '-'}
+                  </span>
                 </div>
+                {platformData.instagram.postsCount > 0 && platformData.instagram.totalReach > 0 && (
+                  <div className="flex justify-between text-xs sm:text-sm">
+                    <span className="text-gray-600">Total Reach</span>
+                    <span className="font-semibold">{formatNumber(platformData.instagram.totalReach)}</span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
         </div>
-      )}
+      </div>
 
       {/* AI-Powered Insights */}
       {analyticsData.totalPosts > 0 && <AIInsights />}
@@ -515,27 +582,27 @@ function Analytics() {
 
       {/* Top Performing Clips */}
       {topClips.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Top Performing Clips</h2>
-          <div className="space-y-4">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6 mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Top Performing Clips</h2>
+          <div className="space-y-3 sm:space-y-4">
             {topClips.map((clip, index) => (
-              <div key={clip.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
-                <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <span className="font-bold text-purple-600">#{index + 1}</span>
+              <div key={clip.id} className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <span className="font-bold text-purple-600 text-xs sm:text-base">#{index + 1}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 truncate">{clip.title}</h3>
-                  <div className="flex items-center space-x-4 mt-1">
-                    <span className="text-sm text-gray-500">👁️ {formatNumber(clip.views)}</span>
-                    <span className="text-sm text-gray-500">❤️ {formatNumber(clip.likes)}</span>
-                    <span className="text-sm text-gray-500">💬 {formatNumber(clip.comments)}</span>
-                    <span className="text-sm text-purple-600 font-medium">{clip.engagementRate}% engagement</span>
+                  <h3 className="font-semibold text-gray-900 truncate text-sm sm:text-base">{clip.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1">
+                    <span className="text-xs sm:text-sm text-gray-500">👁️ {formatNumber(clip.views)}</span>
+                    <span className="text-xs sm:text-sm text-gray-500">❤️ {formatNumber(clip.likes)}</span>
+                    <span className="text-xs sm:text-sm text-gray-500">💬 {formatNumber(clip.comments)}</span>
+                    <span className="text-xs sm:text-sm text-purple-600 font-medium">{clip.engagementRate}% engagement</span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <button
                     onClick={() => navigate(`/dashboard/analytics/clip/${clip.id}`)}
-                    className="px-3 py-1 text-sm bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition"
+                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition whitespace-nowrap"
                   >
                     Details
                   </button>
@@ -544,7 +611,7 @@ function Analytics() {
                       href={clip.platformUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                      className="px-2 sm:px-3 py-1 text-xs sm:text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition whitespace-nowrap text-center"
                     >
                       View
                     </a>
@@ -557,21 +624,21 @@ function Analytics() {
       )}
 
       {/* Engagement Rate Gauge */}
-      <div className="bg-white rounded-xl shadow p-6 mb-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Engagement Rate Analysis</h2>
+      <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6 mb-6 sm:mb-8">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Engagement Rate Analysis</h2>
         <EngagementGauge engagementRate={analyticsData.engagementRate} loading={loading} />
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {/* Views Over Time - Line Chart */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Views Over Time</h2>
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-3 sm:mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Views Over Time</h2>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(parseInt(e.target.value))}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full sm:w-auto px-3 py-1.5 sm:py-1 border border-gray-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value={7}>Last 7 days</option>
               <option value={14}>Last 14 days</option>
@@ -584,22 +651,22 @@ function Analytics() {
         </div>
 
         {/* Platform Performance - Bar Chart */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Platform Comparison</h2>
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Platform Comparison</h2>
           <PlatformBarChart platformData={platformData} loading={loading} />
         </div>
       </div>
 
       {/* Engagement Breakdown - Pie Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Engagement Breakdown</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Engagement Breakdown</h2>
           <EngagementPieChart analyticsData={analyticsData} loading={loading} />
         </div>
 
         {/* Engagement Over Time - Area Chart */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Engagement Over Time</h2>
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Engagement Over Time</h2>
           <EngagementAreaChart data={timeSeriesData} loading={loading} />
         </div>
       </div>

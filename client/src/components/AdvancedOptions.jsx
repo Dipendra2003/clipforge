@@ -79,6 +79,22 @@ function AdvancedOptions({
               </label>
               
               <label className="flex items-center p-3 bg-white rounded-lg border-2 cursor-pointer hover:border-purple-400 transition"
+                style={{ borderColor: clipMode === 'continuous' ? '#9333ea' : '#e5e7eb' }}>
+                <input
+                  type="radio"
+                  name={`clipMode${radioNameSuffix}`}
+                  value="continuous"
+                  checked={clipMode === 'continuous'}
+                  onChange={(e) => setClipMode(e.target.value)}
+                  className="w-4 h-4 text-purple-600"
+                />
+                <div className="ml-3">
+                  <span className="font-semibold text-gray-900">🎬 Continuous AI Mode</span>
+                  <p className="text-xs text-gray-600">Creates continuous clips from the start</p>
+                </div>
+              </label>
+              
+              <label className="flex items-center p-3 bg-white rounded-lg border-2 cursor-pointer hover:border-purple-400 transition"
                 style={{ borderColor: clipMode === 'range' ? '#9333ea' : '#e5e7eb' }}>
                 <input
                   type="radio"
@@ -99,6 +115,106 @@ function AdvancedOptions({
           {/* AI Mode Options */}
           {clipMode === 'ai' && (
             <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}
+                </label>
+                <div className="relative" style={{ height: '24px', display: 'flex', alignItems: 'center' }}>
+                  {/* Background unfilled bar */}
+                  <div className="absolute left-0 w-full h-2 bg-gray-300 rounded-lg pointer-events-none" style={{ top: 'calc(50% + 2px)', transform: 'translateY(-50%)' }}></div>
+                  {/* Progress fill bar */}
+                  <div className="absolute left-0 h-2 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-l-lg pointer-events-none transition-all duration-200"
+                    style={{ 
+                      width: `${((clipDuration - 30) / (300 - 30)) * 100}%`,
+                      top: 'calc(50% + 2px)',
+                      transform: 'translateY(-50%)'
+                    }}
+                  ></div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="300"
+                    step="30"
+                    value={clipDuration}
+                    onChange={(e) => setClipDuration(parseInt(e.target.value))}
+                    className="w-full bg-transparent rounded-lg appearance-none cursor-pointer relative"
+                    style={{ margin: 0, padding: 0, height: '24px' }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <span>30s</span>
+                  <span className="hidden sm:inline">1m</span>
+                  <span className="hidden md:inline">1m30s</span>
+                  <span className="hidden sm:inline">2m</span>
+                  <span className="hidden md:inline">2m30s</span>
+                  <span className="hidden sm:inline">3m</span>
+                  <span className="hidden md:inline">3m30s</span>
+                  <span className="hidden sm:inline">4m</span>
+                  <span className="hidden md:inline">4m30s</span>
+                  <span>5m</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  🎬 Number of Clips: {numClips}
+                </label>
+                <div className="relative" style={{ height: '24px', display: 'flex', alignItems: 'center' }}>
+                  {/* Background unfilled bar */}
+                  <div className="absolute left-0 w-full h-2 bg-gray-300 rounded-lg pointer-events-none" style={{ top: 'calc(50% + 2px)', transform: 'translateY(-50%)' }}></div>
+                  {/* Progress fill bar */}
+                  <div className="absolute left-0 h-2 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-l-lg pointer-events-none transition-all duration-200"
+                    style={{ 
+                      width: `${((numClips - 1) / (10 - 1)) * 100}%`,
+                      top: 'calc(50% + 2px)',
+                      transform: 'translateY(-50%)'
+                    }}
+                  ></div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={numClips}
+                    onChange={(e) => setNumClips(parseInt(e.target.value))}
+                    className="w-full bg-transparent rounded-lg appearance-none cursor-pointer relative"
+                    style={{ margin: 0, padding: 0, height: '24px' }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <span>1</span>
+                  <span className="hidden sm:inline">2</span>
+                  <span className="hidden md:inline">3</span>
+                  <span className="hidden sm:inline">4</span>
+                  <span className="hidden md:inline">5</span>
+                  <span className="hidden sm:inline">6</span>
+                  <span className="hidden md:inline">7</span>
+                  <span className="hidden sm:inline">8</span>
+                  <span className="hidden md:inline">9</span>
+                  <span>10</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Continuous Mode Options */}
+          {clipMode === 'continuous' && (
+            <>
+              <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border-2 border-purple-300">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🎬</span>
+                  <span className="font-bold text-purple-900">Continuous AI Mode</span>
+                </div>
+                <p className="text-xs text-purple-700 mb-3">
+                  Creates continuous clips starting from the beginning of the video. Perfect for sequential content like tutorials, podcasts, or stories.
+                </p>
+                <div className="bg-white p-2 rounded border border-purple-200">
+                  <p className="text-xs text-gray-700">
+                    <strong>Example:</strong> For a 30-min video with 5 clips of 2-min each, you'll get clips from 0-2, 2-4, 4-6, 6-8, 8-10 minutes.
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   ⏱️ Clip Duration: {clipDuration >= 60 ? `${Math.floor(clipDuration / 60)}min ${clipDuration % 60 > 0 ? `${clipDuration % 60}sec` : ''}` : `${clipDuration}sec`}

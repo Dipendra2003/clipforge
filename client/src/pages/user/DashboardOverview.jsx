@@ -53,7 +53,7 @@ function DashboardOverview() {
   // Load stats and recent clips on mount
   useEffect(() => {
     loadStats();
-    loadRecentClips();
+    loadRecentClips(); // Load last generated video's clips
     loadRecentActivity();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -130,7 +130,7 @@ function DashboardOverview() {
         return;
       }
       
-      const response = await fetch('http://localhost:5000/api/clips/my-clips?limit=10', {
+      const response = await fetch('http://localhost:5000/api/clips/my-clips', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -139,35 +139,42 @@ function DashboardOverview() {
       if (response.ok) {
         const data = await response.json();
         if (data.clips && data.clips.length > 0) {
-          // Filter out clips that don't have cloud URLs (old clips with deleted local files)
-          const validClips = data.clips.filter(clip => {
-            // Keep clip if it has a cloud URL
-            if (clip.cloud_url || clip.cloudUrl) {
-              return true;
-            }
-            // Or if it has a file path that looks valid (not in clips subfolder which gets deleted)
-            if (clip.file_path && !clip.file_path.includes('/clips/') && !clip.file_path.includes('\\clips\\')) {
-              return true;
-            }
-            // Otherwise skip this clip (it's likely deleted)
-            console.log('⚠️ Skipping clip without valid URL:', clip.title);
-            return false;
+          // Find the most recent video_id (latest created_at)
+          const sortedByDate = [...data.clips].sort((a, b) => 
+            new Date(b.created_at) - new Date(a.created_at)
+          );
+          
+          const latestVideoId = sortedByDate[0].video_id;
+          
+          // Get all clips from that video
+          const latestVideoClips = data.clips.filter(clip => clip.video_id === latestVideoId);
+          
+          // Sort by start_time to show in correct order (#1, #2, #3...)
+          const sortedClips = latestVideoClips.sort((a, b) => 
+            (a.start_time || 0) - (b.start_time || 0)
+          );
+          
+          console.log('📊 Loading clips:', {
+            totalClips: data.clips.length,
+            latestVideoId,
+            latestVideoClipsCount: sortedClips.length,
+            firstClip: sortedClips[0]?.title
           });
           
-          if (validClips.length > 0) {
-            // Sort clips by clip number to ensure correct order
-            const sortedClips = [...validClips].sort((a, b) => (a.clipNumber || 0) - (b.clipNumber || 0));
-            setGeneratedClips(sortedClips);
-            setShowClips(true);
-          }
+          setGeneratedClips(sortedClips);
+          setShowClips(true);
+        } else {
+          // No clips found
+          setGeneratedClips([]);
+          setShowClips(false);
         }
         // Reload stats to update clip count
         loadStats();
       } else {
         await response.json().catch(() => ({}));
       }
-    } catch {
-      // Silent error handling
+    } catch (error) {
+      console.error('Error loading clips:', error);
     }
   };
 
@@ -335,7 +342,7 @@ function DashboardOverview() {
         subtitleLanguage: subtitleLanguage !== 'auto' ? subtitleLanguage : null
       };
       
-      if (clipMode === 'ai') {
+      if (clipMode === 'ai' || clipMode === 'continuous') {
         processingOptions.clipDuration = clipDuration;
       } else if (clipMode === 'divide') {
         const divideDuration = divideMinutes * 60 + divideSeconds;
@@ -401,6 +408,24 @@ function DashboardOverview() {
       // Save to database via Node.js backend
       try {
         const token = localStorage.getItem('accessToken');
+        
+        console.log('💾 Attempting to save clips to database...', {
+          videoId: extractedVideoId,
+          userId: userId,
+          clipsCount: processData.clips.length,
+          hasToken: !!token
+        });
+        
+        if (!userId) {
+          console.error('❌ Cannot save: userId is null or undefined');
+          toast.error('Cannot save clips: User not authenticated');
+          // Show clips anyway
+          const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
+          setGeneratedClips(sortedClips);
+          setShowClips(true);
+          return;
+        }
+        
         const saveResponse = await fetch('http://localhost:5000/api/videos/save-processed', {
           method: 'POST',
           headers: {
@@ -423,21 +448,33 @@ function DashboardOverview() {
         });
 
         if (saveResponse.ok) {
-          console.log('✅ Clips saved to database');
+          const saveData = await saveResponse.json();
+          console.log('✅ Clips saved to database:', saveData);
           toast.success('Clips saved successfully!');
           // Reload clips and stats from database
           await loadRecentClips();
           await loadStats(); // Refresh stats to show new video count
           await loadRecentActivity(); // Refresh activity feed
+          
+          // Scroll to clips after data is loaded
+          setTimeout(() => {
+            const clipsSection = document.getElementById('clips-section');
+            if (clipsSection) {
+              clipsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 300);
         } else {
-          console.warn('⚠️ Failed to save to database');
+          const errorData = await saveResponse.json();
+          console.error('⚠️ Failed to save to database:', errorData);
+          toast.error(`Failed to save clips: ${errorData.error || 'Unknown error'}`);
           // If save failed, show the clips from processing response
           const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
           setGeneratedClips(sortedClips);
           setShowClips(true);
         }
       } catch (saveError) {
-        console.error('Database save error:', saveError);
+        console.error('❌ Database save error:', saveError);
+        toast.error(`Error saving clips: ${saveError.message}`);
         // On error, show the clips from processing response
         const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
         setGeneratedClips(sortedClips);
@@ -445,14 +482,6 @@ function DashboardOverview() {
       }
       
       setYoutubeUrl('');
-      
-      // Scroll to clips
-      setTimeout(() => {
-        const clipsSection = document.getElementById('clips-section');
-        if (clipsSection) {
-          clipsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 500);
       
     } catch {
       toast.error('Failed to connect to server. Make sure Flask server is running on port 5001.');
@@ -545,7 +574,7 @@ function DashboardOverview() {
         subtitleLanguage: subtitleLanguage !== 'auto' ? subtitleLanguage : null
       };
       
-      if (clipMode === 'ai') {
+      if (clipMode === 'ai' || clipMode === 'continuous') {
         processingOptions.clipDuration = clipDuration;
       } else if (clipMode === 'divide') {
         const divideDuration = divideMinutes * 60 + divideSeconds;
@@ -636,15 +665,28 @@ function DashboardOverview() {
           })
         });
 
+        console.log('💾 Save response status:', saveResponse.status);
+
         if (saveResponse.ok) {
-          console.log('✅ Clips saved to database');
+          const saveData = await saveResponse.json();
+          console.log('✅ Clips saved to database:', saveData);
           toast.success('Clips saved successfully!');
           // Reload clips and stats from database
           await loadRecentClips();
           await loadStats(); // Refresh stats to show new video count
           await loadRecentActivity(); // Refresh activity feed
+          
+          // Scroll to clips after data is loaded
+          setTimeout(() => {
+            const clipsSection = document.getElementById('clips-section');
+            if (clipsSection) {
+              clipsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }, 300);
         } else {
-          console.warn('⚠️ Failed to save to database');
+          const errorData = await saveResponse.json();
+          console.error('⚠️ Failed to save to database:', saveResponse.status, errorData);
+          toast.error(`Failed to save clips: ${errorData.error || 'Unknown error'}`);
           // If save failed, show the clips from processing response
           const sortedClips = [...processData.clips].sort((a, b) => a.clipNumber - b.clipNumber);
           setGeneratedClips(sortedClips);
@@ -657,14 +699,6 @@ function DashboardOverview() {
         setGeneratedClips(sortedClips);
         setShowClips(true);
       }
-      
-      // Scroll to clips
-      setTimeout(() => {
-        const clipsSection = document.getElementById('clips-section');
-        if (clipsSection) {
-          clipsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 500);
 
     } catch (error) {
       toast.error(error.message || 'Failed to process video.');

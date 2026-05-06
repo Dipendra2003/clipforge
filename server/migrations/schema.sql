@@ -169,32 +169,36 @@ CREATE TABLE published_posts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     clip_id UUID NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
-    platform VARCHAR(50) NOT NULL CHECK (platform IN ('youtube')),
-    platform_video_id VARCHAR(255), -- YouTube video ID
-    platform_url TEXT, -- Public YouTube URL
+    platform VARCHAR(50) NOT NULL CHECK (platform IN ('youtube', 'instagram')),
+    platform_video_id VARCHAR(255), -- YouTube video ID or Instagram media ID
+    platform_url TEXT, -- Public URL to view the posted video
     title VARCHAR(255), -- Custom title used when posting
     caption TEXT, -- Caption/description text posted with the video
     status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'uploading', 'published', 'failed', 'scheduled', 'cancelled')),
     error_message TEXT,
     scheduled_for TIMESTAMP, -- IST timestamp when the post should be published
     is_scheduled BOOLEAN DEFAULT FALSE, -- Whether this post is scheduled for future publishing
-    -- Analytics columns
+    -- Analytics columns (YouTube & Instagram)
     views_count INTEGER DEFAULT 0,
     likes_count INTEGER DEFAULT 0,
+    dislikes_count INTEGER DEFAULT 0,
     comments_count INTEGER DEFAULT 0,
     shares_count INTEGER DEFAULT 0,
     watch_time_seconds INTEGER DEFAULT 0,
     avg_view_duration DECIMAL(5,2) DEFAULT 0,
     click_through_rate DECIMAL(5,2) DEFAULT 0,
+    -- Instagram-specific analytics
+    reach_count INTEGER DEFAULT 0, -- Total reach (unique accounts reached)
+    saved_count INTEGER DEFAULT 0, -- Total saves/bookmarks
     last_synced_at TIMESTAMP,
     metadata JSONB, -- Additional platform-specific data
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE published_posts IS 'Tracks clips posted to social media platforms';
-COMMENT ON COLUMN published_posts.platform IS 'Platform name: youtube';
-COMMENT ON COLUMN published_posts.platform_video_id IS 'Platform-specific video ID (e.g., YouTube video ID)';
+COMMENT ON TABLE published_posts IS 'Tracks clips posted to social media platforms (YouTube & Instagram)';
+COMMENT ON COLUMN published_posts.platform IS 'Platform name: youtube or instagram';
+COMMENT ON COLUMN published_posts.platform_video_id IS 'Platform-specific video ID (YouTube video ID or Instagram media ID)';
 COMMENT ON COLUMN published_posts.platform_url IS 'Public URL to view the posted video';
 COMMENT ON COLUMN published_posts.title IS 'Custom title used when posting (may differ from clip title)';
 COMMENT ON COLUMN published_posts.caption IS 'Caption/description text posted with the video';
@@ -203,11 +207,14 @@ COMMENT ON COLUMN published_posts.scheduled_for IS 'IST timestamp when the post 
 COMMENT ON COLUMN published_posts.is_scheduled IS 'Whether this post is scheduled for future publishing';
 COMMENT ON COLUMN published_posts.views_count IS 'Total views from YouTube/Instagram';
 COMMENT ON COLUMN published_posts.likes_count IS 'Total likes from YouTube/Instagram';
+COMMENT ON COLUMN published_posts.dislikes_count IS 'Total dislikes from YouTube (only visible to creator)';
 COMMENT ON COLUMN published_posts.comments_count IS 'Total comments from YouTube/Instagram';
 COMMENT ON COLUMN published_posts.shares_count IS 'Total shares from YouTube/Instagram';
-COMMENT ON COLUMN published_posts.watch_time_seconds IS 'Total watch time in seconds';
+COMMENT ON COLUMN published_posts.watch_time_seconds IS 'Total watch time in seconds (YouTube only)';
 COMMENT ON COLUMN published_posts.avg_view_duration IS 'Average view duration in seconds';
 COMMENT ON COLUMN published_posts.click_through_rate IS 'Click-through rate percentage';
+COMMENT ON COLUMN published_posts.reach_count IS 'Total reach (unique accounts reached) - Instagram specific';
+COMMENT ON COLUMN published_posts.saved_count IS 'Total saves/bookmarks - Instagram specific';
 COMMENT ON COLUMN published_posts.last_synced_at IS 'Last time analytics were synced from platform';
 
 -- Analytics snapshots table - stores daily analytics data for time-series analysis
@@ -217,6 +224,7 @@ CREATE TABLE analytics_snapshots (
     snapshot_date DATE NOT NULL,
     views_count INTEGER DEFAULT 0,
     likes_count INTEGER DEFAULT 0,
+    dislikes_count INTEGER DEFAULT 0,
     comments_count INTEGER DEFAULT 0,
     shares_count INTEGER DEFAULT 0,
     watch_time_seconds INTEGER DEFAULT 0,
@@ -229,6 +237,31 @@ CREATE TABLE analytics_snapshots (
 COMMENT ON TABLE analytics_snapshots IS 'Daily snapshots of analytics data for time-series analysis';
 COMMENT ON COLUMN analytics_snapshots.post_id IS 'Reference to published post';
 COMMENT ON COLUMN analytics_snapshots.snapshot_date IS 'Date of this snapshot';
+
+-- ============================================
+-- USER PREFERENCES TABLES
+-- ============================================
+
+-- Notification preferences table - stores user notification settings
+CREATE TABLE notification_preferences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email_notifications BOOLEAN DEFAULT TRUE,
+    processing_complete BOOLEAN DEFAULT TRUE,
+    scheduled_posts BOOLEAN DEFAULT TRUE,
+    marketing_emails BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ensure one preference record per user
+    UNIQUE(user_id)
+);
+
+COMMENT ON TABLE notification_preferences IS 'Stores user notification preferences';
+COMMENT ON COLUMN notification_preferences.email_notifications IS 'Receive email updates about clips';
+COMMENT ON COLUMN notification_preferences.processing_complete IS 'Get notified when video processing is done';
+COMMENT ON COLUMN notification_preferences.scheduled_posts IS 'Reminders about upcoming scheduled posts';
+COMMENT ON COLUMN notification_preferences.marketing_emails IS 'Receive tips and product updates';
 
 -- ============================================
 -- INDEXES FOR PERFORMANCE OPTIMIZATION
@@ -271,15 +304,20 @@ CREATE INDEX idx_published_posts_platform ON published_posts(platform);
 CREATE INDEX idx_published_posts_status ON published_posts(status);
 CREATE INDEX idx_published_posts_created_at ON published_posts(created_at DESC);
 CREATE INDEX idx_published_posts_clip_platform ON published_posts(clip_id, platform);
+CREATE INDEX idx_published_posts_user_platform ON published_posts(user_id, platform);
 CREATE INDEX idx_published_posts_scheduled ON published_posts(status, scheduled_for) WHERE status = 'scheduled' AND scheduled_for IS NOT NULL;
 CREATE INDEX idx_published_posts_views ON published_posts(views_count DESC);
 CREATE INDEX idx_published_posts_likes ON published_posts(likes_count DESC);
+CREATE INDEX idx_published_posts_dislikes ON published_posts(dislikes_count DESC);
 CREATE INDEX idx_published_posts_last_synced ON published_posts(last_synced_at);
 
 -- Analytics snapshots indexes
 CREATE INDEX idx_analytics_snapshots_post_id ON analytics_snapshots(post_id);
 CREATE INDEX idx_analytics_snapshots_date ON analytics_snapshots(snapshot_date DESC);
 CREATE INDEX idx_analytics_snapshots_post_date ON analytics_snapshots(post_id, snapshot_date);
+
+-- Notification preferences indexes
+CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
 
 -- ============================================
 -- TRIGGERS FOR AUTO-UPDATE TIMESTAMPS
@@ -313,6 +351,10 @@ CREATE TRIGGER update_platform_connections_updated_at
 
 CREATE TRIGGER update_published_posts_updated_at 
     BEFORE UPDATE ON published_posts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_notification_preferences_updated_at 
+    BEFORE UPDATE ON notification_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================

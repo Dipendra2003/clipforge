@@ -1,141 +1,15 @@
 import { google } from 'googleapis';
 import fs from 'fs';
-import path from 'path';
-import axios from 'axios';
 import PlatformConnection from '../models/PlatformConnection.js';
 import PublishedPost from '../models/PublishedPost.js';
 import Clip from '../models/Clip.js';
 import logger from '../utils/logger.js';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { ensureValidYouTubeConnection, getYouTubeClient } from '../utils/youtubeAuth.js';
+import { ensureClipExists, validateClipFileSize, createClipReadStream } from '../utils/clipStorage.js';
 
 const YOUTUBE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const YOUTUBE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_REDIRECT_URI = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`;
-
-// Helper function to download clip from Cloudinary if needed
-async function ensureClipExists(clip) {
-  // Prioritize cloud_url if available
-  let clipUrl = clip.cloud_url || clip.file_path;
-  
-  // Check if it's a Cloudinary URL
-  if (clipUrl && (clipUrl.startsWith('http://') || clipUrl.startsWith('https://'))) {
-    // Extract filename from URL
-    const urlParts = clipUrl.split('/');
-    const filename = urlParts[urlParts.length - 1];
-    const localPath = path.join(__dirname, '..', 'downloads', 'clips', filename);
-    
-    // Check if file already exists locally
-    if (fs.existsSync(localPath)) {
-      logger.info('Clip already exists locally', { localPath });
-      return localPath;
-    }
-    
-    // Download from Cloudinary
-    logger.info('Downloading clip from Cloudinary', { url: clipUrl, localPath });
-    
-    // Ensure directory exists
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    try {
-      const response = await axios({
-        method: 'GET',
-        url: clipUrl,
-        responseType: 'stream'
-      });
-      
-      const writer = fs.createWriteStream(localPath);
-      response.data.pipe(writer);
-      
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
-      
-      logger.info('Clip downloaded successfully', { localPath });
-      return localPath;
-    } catch (error) {
-      logger.error('Failed to download clip from Cloudinary', { 
-        error: error.message, 
-        url: clipUrl 
-      });
-      throw new Error(`Failed to download clip: ${error.message}`);
-    }
-  }
-  
-  // Handle local paths (fallback)
-  let clipPath = clip.file_path;
-  
-  // Fix duplicate downloads/ prefix issue
-  if (clipPath && clipPath.includes('downloads/downloads')) {
-    clipPath = clipPath.replace(/downloads\/downloads/g, 'downloads');
-  }
-  
-  if (clipPath && (clipPath.startsWith('downloads/') || clipPath.startsWith('downloads\\'))) {
-    clipPath = path.join(__dirname, '..', clipPath);
-  } else if (clipPath && !path.isAbsolute(clipPath)) {
-    clipPath = path.join(__dirname, '..', 'downloads', 'clips', clipPath);
-  }
-  
-  if (clipPath && fs.existsSync(clipPath)) {
-    return clipPath;
-  }
-  
-  throw new Error(`Clip file not available. No valid cloud_url or local file_path found.`);
-}
-
-
-// Refresh YouTube access token if expired
-async function refreshYouTubeToken(connection) {
-  try {
-    const oauth2Client = new google.auth.OAuth2(
-      YOUTUBE_CLIENT_ID,
-      YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      refresh_token: connection.refresh_token
-    });
-
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    
-    // Update token in database - FIX: expiry_date is already a timestamp
-    const expiresAt = new Date(credentials.expiry_date);
-    await PlatformConnection.updateTokens(
-      connection.user_id,
-      'youtube',
-      credentials.access_token,
-      expiresAt
-    );
-
-    logger.info('YouTube token refreshed successfully', { 
-      userId: connection.user_id,
-      expiresAt 
-    });
-
-    return credentials.access_token;
-  } catch (error) {
-    logger.error('Token refresh error', { 
-      error: error.message,
-      userId: connection.user_id,
-      code: error.code 
-    });
-    
-    // If refresh token is invalid, user needs to reconnect
-    if (error.code === 400 || error.message.includes('invalid_grant')) {
-      throw new Error('YouTube connection expired. Please reconnect your account in Settings.');
-    }
-    
-    throw new Error('Failed to refresh YouTube token. Please try again or reconnect your account.');
-  }
-}
 
 // Post clip to YouTube Shorts
 export const postToYouTube = async (req, res) => {
@@ -165,40 +39,15 @@ export const postToYouTube = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Get YouTube connection
-    let connection = await PlatformConnection.findByUserAndPlatform(userId, 'youtube');
-    if (!connection) {
+    // Get YouTube connection and ensure it's valid
+    let connection;
+    try {
+      connection = await ensureValidYouTubeConnection(userId);
+    } catch (error) {
       return res.status(400).json({ 
-        error: 'YouTube not connected',
-        message: 'Please connect your YouTube account in Settings first'
+        error: 'YouTube connection error',
+        message: error.message
       });
-    }
-
-    // Validate that connection has required data
-    if (!connection.platform_user_id || !connection.platform_username) {
-      logger.error('Invalid YouTube connection - missing channel data', { userId });
-      return res.status(400).json({ 
-        error: 'Invalid YouTube connection',
-        message: 'Your YouTube connection is incomplete. Please reconnect your account in Settings.'
-      });
-    }
-
-    // Check if token is expired and refresh if needed
-    if (PlatformConnection.isTokenExpired(connection)) {
-      logger.info('YouTube token expired, refreshing...', { userId });
-      try {
-        const newAccessToken = await refreshYouTubeToken(connection);
-        connection.access_token = newAccessToken;
-      } catch (refreshError) {
-        logger.error('Token refresh failed during post', { 
-          userId, 
-          error: refreshError.message 
-        });
-        return res.status(401).json({ 
-          error: 'YouTube authentication expired',
-          message: refreshError.message
-        });
-      }
     }
 
     // Verify clip file exists
@@ -289,43 +138,26 @@ export const postToYouTube = async (req, res) => {
       clipPath 
     });
 
+    // Validate file size
+    try {
+      validateClipFileSize(clipPath);
+    } catch (sizeError) {
+      return res.status(400).json({ 
+        error: 'File validation failed',
+        message: sizeError.message
+      });
+    }
+
     // Initialize YouTube API
-    const oauth2Client = new google.auth.OAuth2(
-      YOUTUBE_CLIENT_ID,
-      YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      access_token: connection.access_token,
-      refresh_token: connection.refresh_token
-    });
-
-    const youtube = google.youtube({
-      version: 'v3',
-      auth: oauth2Client
-    });
+    const youtube = getYouTubeClient(connection);
 
     // Prepare video metadata
     const videoTitle = title.trim();
     const videoDescription = caption?.trim() || clip.transcript || 'Created with ClipForge AI';
     const videoPrivacy = privacy || 'public';
-
-    // Upload video to YouTube
-    const fileSize = fs.statSync(clipPath).size;
-    
-    // Validate file size (YouTube limit is 256GB, but let's be reasonable)
-    const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
-    if (fileSize > maxSize) {
-      return res.status(400).json({ 
-        error: 'File too large',
-        message: 'Video file exceeds 2GB limit'
-      });
-    }
     
     logger.info('Uploading to YouTube', { 
       title: videoTitle,
-      fileSize,
       privacy: videoPrivacy,
       scheduled: isScheduled,
       scheduledFor: scheduledDate,
@@ -364,7 +196,7 @@ export const postToYouTube = async (req, res) => {
         status: statusConfig
       },
       media: {
-        body: fs.createReadStream(clipPath)
+        body: createClipReadStream(clipPath)
       }
     });
 
@@ -908,6 +740,296 @@ export const cancelScheduledPost = async (req, res) => {
     });
     res.status(500).json({ 
       error: 'Failed to cancel scheduled post',
+      message: error.message 
+    });
+  }
+};
+
+// Post clip to Instagram Reels
+export const postToInstagram = async (req, res) => {
+  let postRecord = null;
+  
+  try {
+    const { clipId, caption } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!clipId) {
+      return res.status(400).json({ error: 'Clip ID is required' });
+    }
+
+    // Get clip from database
+    const clip = await Clip.findById(clipId);
+    if (!clip) {
+      return res.status(404).json({ error: 'Clip not found' });
+    }
+
+    // Verify ownership
+    if (clip.user_id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Get Instagram connection
+    const connection = await PlatformConnection.findByUserAndPlatform(userId, 'instagram');
+    if (!connection) {
+      return res.status(400).json({ 
+        error: 'Instagram not connected',
+        message: 'Please connect your Instagram account in Settings'
+      });
+    }
+
+    // Check if connection is expired
+    if (PlatformConnection.isTokenExpired(connection)) {
+      return res.status(400).json({ 
+        error: 'Instagram connection expired',
+        message: 'Please reconnect your Instagram account in Settings'
+      });
+    }
+
+    // Verify clip file exists and get cloud URL
+    let videoUrl;
+    try {
+      // Instagram requires a publicly accessible URL
+      if (!clip.cloud_url) {
+        throw new Error('Clip must be uploaded to cloud storage first');
+      }
+      videoUrl = clip.cloud_url;
+      logger.info('Using cloud URL for Instagram', { videoUrl, clipId });
+    } catch (error) {
+      logger.error('Failed to get clip URL', { 
+        error: error.message,
+        clipId 
+      });
+      return res.status(404).json({ 
+        error: 'Clip not available',
+        message: error.message
+      });
+    }
+
+    // Create post record
+    postRecord = await PublishedPost.create({
+      userId,
+      clipId,
+      platform: 'instagram',
+      title: clip.title,
+      caption: caption?.trim() || clip.title || '',
+      status: 'uploading',
+      metadata: {}
+    });
+
+    logger.info('Starting Instagram upload', { 
+      userId, 
+      clipId, 
+      postId: postRecord.id,
+      videoUrl 
+    });
+
+    // Import Instagram publishing service
+    const { publishToInstagram } = await import('../services/instagramPublishing.js');
+
+    // Publish to Instagram
+    const result = await publishToInstagram(
+      videoUrl,
+      caption?.trim() || clip.title || '',
+      connection
+    );
+
+    logger.info('Instagram upload successful', { 
+      mediaId: result.mediaId,
+      permalink: result.permalink,
+      postId: postRecord.id
+    });
+
+    // Update post record with success
+    await PublishedPost.updateStatus(
+      postRecord.id,
+      'published',
+      null,
+      result.mediaId,
+      result.permalink
+    );
+
+    // Update clip status
+    await Clip.update(clipId, { status: 'posted' });
+
+    logger.authEvent('INSTAGRAM_POST_SUCCESS', userId, { 
+      clipId, 
+      mediaId: result.mediaId,
+      postId: postRecord.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Clip posted to Instagram Reels successfully!',
+      mediaId: result.mediaId,
+      permalink: result.permalink,
+      post: {
+        id: postRecord.id,
+        platform: 'instagram',
+        status: 'published',
+        caption: caption?.trim() || clip.title || '',
+        platformVideoId: result.mediaId,
+        platform_video_id: result.mediaId,
+        platformUrl: result.permalink,
+        platform_url: result.permalink,
+        clipId: clipId,
+        clip_id: clipId
+      }
+    });
+
+  } catch (error) {
+    logger.error('Instagram post error', { 
+      error: error.message,
+      stack: error.stack,
+      userId: req.user.id,
+      clipId: req.body.clipId
+    });
+
+    // Update post record with error if it was created
+    if (postRecord) {
+      await PublishedPost.updateStatus(
+        postRecord.id,
+        'failed',
+        error.message
+      );
+    }
+
+    // Handle specific Instagram errors
+    let errorMessage = 'Failed to post to Instagram';
+    let statusCode = 500;
+
+    if (error.message.includes('Container processing timeout')) {
+      errorMessage = 'Instagram is processing your video. This may take a few minutes. Please try again shortly.';
+      statusCode = 503;
+    } else if (error.message.includes('media container')) {
+      errorMessage = 'Failed to upload video to Instagram. Please ensure your video meets Instagram requirements (MP4, H.264, 9:16 aspect ratio, 3-60 seconds).';
+      statusCode = 400;
+    } else if (error.message.includes('Business Account')) {
+      errorMessage = 'Instagram Business Account not found. Please ensure your Instagram account is converted to a Business account.';
+      statusCode = 400;
+    } else if (error.message.includes('rate limit')) {
+      errorMessage = 'Instagram rate limit reached. Please try again later.';
+      statusCode = 429;
+    }
+
+    res.status(statusCode).json({ 
+      error: errorMessage,
+      message: error.message,
+      details: error.response?.data
+    });
+  }
+};
+
+
+// Verify if Instagram post still exists
+export const verifyInstagramPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+
+    // Get post record
+    const post = await PublishedPost.findById(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    // Verify ownership
+    if (post.user_id !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Only for Instagram posts
+    if (post.platform !== 'instagram') {
+      return res.status(400).json({ error: 'This endpoint is only for Instagram posts' });
+    }
+
+    // Get Instagram connection
+    const connection = await PlatformConnection.findByUserAndPlatform(userId, 'instagram');
+    if (!connection) {
+      return res.status(400).json({ 
+        error: 'Instagram not connected',
+        message: 'Please reconnect your Instagram account'
+      });
+    }
+
+    // Check if connection is expired
+    if (PlatformConnection.isTokenExpired(connection)) {
+      return res.status(400).json({ 
+        error: 'Instagram connection expired',
+        message: 'Please reconnect your Instagram account'
+      });
+    }
+
+    // Import Instagram service
+    const { refreshInstagramToken } = await import('../services/instagramPublishing.js');
+    const axios = (await import('axios')).default;
+    
+    // Refresh token if needed
+    const accessToken = await refreshInstagramToken(connection);
+
+    // Try to get media details
+    try {
+      const INSTAGRAM_API_VERSION = 'v21.0';
+      const response = await axios.get(
+        `https://graph.facebook.com/${INSTAGRAM_API_VERSION}/${post.platform_video_id}`,
+        {
+          params: {
+            fields: 'id,media_type,permalink,timestamp,media_url',
+            access_token: accessToken
+          }
+        }
+      );
+
+      // Media exists
+      logger.info('Instagram post verified', { 
+        postId, 
+        mediaId: post.platform_video_id
+      });
+
+      res.json({
+        exists: true,
+        message: 'Post exists on Instagram',
+        media: {
+          id: response.data.id,
+          mediaType: response.data.media_type,
+          permalink: response.data.permalink,
+          timestamp: response.data.timestamp
+        }
+      });
+
+    } catch (apiError) {
+      // Handle Instagram API errors
+      if (apiError.response?.status === 404 || 
+          apiError.response?.data?.error?.code === 100 ||
+          apiError.response?.data?.error?.message?.includes('not found')) {
+        // Media deleted
+        logger.info('Instagram post not found (deleted)', { 
+          postId, 
+          mediaId: post.platform_video_id 
+        });
+
+        await PublishedPost.updateStatus(postId, 'failed', 'Post deleted from Instagram');
+        await Clip.update(post.clip_id, { status: 'completed' });
+
+        return res.json({
+          exists: false,
+          message: 'Post was deleted from Instagram',
+          action: 'Post record updated. You can post this clip again.'
+        });
+      }
+
+      throw apiError;
+    }
+
+  } catch (error) {
+    logger.error('Verify Instagram post error', { 
+      error: error.message,
+      userId: req.user.id,
+      postId: req.params.postId
+    });
+
+    res.status(500).json({ 
+      error: 'Failed to verify post',
       message: error.message 
     });
   }

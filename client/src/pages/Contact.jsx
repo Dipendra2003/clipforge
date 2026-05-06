@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from '../utils/toast';
 
 function Contact() {
   const [formData, setFormData] = useState({
@@ -7,6 +8,8 @@ function Contact() {
     subject: '',
     message: ''
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -15,9 +18,47 @@ function Contact() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Contact form:', formData);
+    
+    if (submitting) return;
+
+    try {
+      setSubmitting(true);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubmitted(true);
+        toast.success(data.message || 'Message sent successfully!');
+        
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          subject: '',
+          message: ''
+        });
+
+        // Reset submitted state after 5 seconds
+        setTimeout(() => setSubmitted(false), 5000);
+      } else {
+        toast.error(data.message || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Contact form error:', error);
+      toast.error('Failed to send message. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -43,7 +84,7 @@ function Contact() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Email Us</h3>
               <p className="text-gray-600">support@clipforge.ai</p>
-              <p className="text-gray-600">sales@clipforge.ai</p>
+              <p className="text-gray-600">dipendrak299@gmail.com</p>
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -55,9 +96,9 @@ function Contact() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Office</h3>
               <p className="text-gray-600">
-                123 AI Street<br />
-                San Francisco, CA 94102<br />
-                United States
+                Maharishi Markandeshwar (Deemed to be University)<br />
+                Mullana, Ambala - 133207<br />
+                Haryana, India
               </p>
             </div>
 
@@ -68,8 +109,8 @@ function Contact() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Phone</h3>
-              <p className="text-gray-600">+1 (555) 123-4567</p>
-              <p className="text-sm text-gray-500 mt-1">Mon-Fri 9am-6pm PST</p>
+              <p className="text-gray-600">+91 98765 43210</p>
+              <p className="text-sm text-gray-500 mt-1">Mon-Sat 9am-6pm IST</p>
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -167,9 +208,27 @@ function Contact() {
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-lg font-semibold hover:shadow-lg transition transform hover:-translate-y-0.5"
+                  disabled={submitting || submitted}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-lg font-semibold hover:shadow-lg transition transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  Send Message
+                  {submitting ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </span>
+                  ) : submitted ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Message Sent!
+                    </span>
+                  ) : (
+                    'Send Message'
+                  )}
                 </button>
               </form>
             </div>
@@ -186,19 +245,19 @@ function Contact() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             <div className="bg-white rounded-xl p-6 shadow">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">What's your response time?</h3>
-              <p className="text-gray-600">We typically respond within 24 hours on business days.</p>
+              <p className="text-gray-600">We typically respond within 24-48 hours on business days.</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Do you offer phone support?</h3>
-              <p className="text-gray-600">Yes, phone support is available for Pro and Enterprise plans.</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Do you offer technical support?</h3>
+              <p className="text-gray-600">Yes, we provide comprehensive technical support for all users.</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Can I schedule a demo?</h3>
-              <p className="text-gray-600">Absolutely! Contact our sales team to schedule a personalized demo.</p>
+              <p className="text-gray-600">Absolutely! Contact us to schedule a personalized demo of ClipForge AI.</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Where is your team located?</h3>
-              <p className="text-gray-600">We're based in San Francisco with a global remote team.</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Where are you located?</h3>
+              <p className="text-gray-600">We're based at MMDU, Mullana, Ambala, Haryana, India.</p>
             </div>
           </div>
         </div>

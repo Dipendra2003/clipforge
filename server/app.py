@@ -339,7 +339,7 @@ def process_video():
         'start_time': data.get('startTime'),  # Optional: process from this time
         'end_time': data.get('endTime'),  # Optional: process until this time
         'emotions': data.get('emotions', []),  # Filter by emotions
-        'clip_mode': data.get('clipMode', 'ai'),  # 'ai', 'divide', or 'range'
+        'clip_mode': data.get('clipMode', 'ai'),  # 'ai', 'divide', 'range', or 'continuous'
         'quality': quality,  # Video quality for output clips
         'subtitle_language': subtitle_language,  # Subtitle language
     }

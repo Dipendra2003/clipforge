@@ -2,6 +2,7 @@ import axios from 'axios';
 import { google } from 'googleapis';
 import PlatformConnection from '../models/PlatformConnection.js';
 import logger from '../utils/logger.js';
+import { refreshYouTubeToken } from '../utils/youtubeAuth.js';
 
 // YouTube OAuth configuration
 const YOUTUBE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -16,6 +17,7 @@ const YOUTUBE_SCOPES = [
 // Instagram Graph API OAuth configuration (Meta Business App)
 const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID;
 const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET;
+const INSTAGRAM_API_VERSION = process.env.INSTAGRAM_API_VERSION || 'v21.0';
 const INSTAGRAM_REDIRECT_URI = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/platform/instagram/callback`;
 // Scopes for Instagram Graph API with Business accounts
 // Using only basic approved scopes for now
@@ -166,7 +168,7 @@ export const initiateInstagramAuth = (req, res) => {
     const state = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64');
     
     // Use Facebook OAuth for Instagram Graph API
-    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
+    const authUrl = `https://www.facebook.com/${INSTAGRAM_API_VERSION}/dialog/oauth?` +
       `client_id=${INSTAGRAM_APP_ID}` +
       `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}` +
       `&scope=${INSTAGRAM_SCOPES}` +
@@ -199,7 +201,7 @@ export const instagramCallback = async (req, res) => {
     const { userId } = JSON.parse(Buffer.from(state, 'base64').toString());
 
     // Step 1: Exchange code for Facebook access token
-    const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+    const tokenResponse = await axios.get(`https://graph.facebook.com/${INSTAGRAM_API_VERSION}/oauth/access_token`, {
       params: {
         client_id: INSTAGRAM_APP_ID,
         client_secret: INSTAGRAM_APP_SECRET,
@@ -211,7 +213,7 @@ export const instagramCallback = async (req, res) => {
     const { access_token: shortLivedToken } = tokenResponse.data;
 
     // Step 2: Exchange short-lived token for long-lived token (60 days)
-    const longLivedResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+    const longLivedResponse = await axios.get(`https://graph.facebook.com/${INSTAGRAM_API_VERSION}/oauth/access_token`, {
       params: {
         grant_type: 'fb_exchange_token',
         client_id: INSTAGRAM_APP_ID,
@@ -223,7 +225,7 @@ export const instagramCallback = async (req, res) => {
     const { access_token: longLivedToken, expires_in } = longLivedResponse.data;
 
     // Step 3: Get Facebook Pages connected to this user
-    const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+    const pagesResponse = await axios.get(`https://graph.facebook.com/${INSTAGRAM_API_VERSION}/me/accounts`, {
       params: {
         access_token: longLivedToken,
         fields: 'id,name,access_token'
@@ -243,7 +245,7 @@ export const instagramCallback = async (req, res) => {
     const pageId = pages[0].id;
     const pageName = pages[0].name;
 
-    const instagramAccountResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+    const instagramAccountResponse = await axios.get(`https://graph.facebook.com/${INSTAGRAM_API_VERSION}/${pageId}`, {
       params: {
         fields: 'instagram_business_account',
         access_token: pageAccessToken
@@ -258,7 +260,7 @@ export const instagramCallback = async (req, res) => {
     }
 
     // Step 5: Get Instagram account details
-    const instagramDetailsResponse = await axios.get(`https://graph.facebook.com/v18.0/${instagramBusinessAccountId}`, {
+    const instagramDetailsResponse = await axios.get(`https://graph.facebook.com/${INSTAGRAM_API_VERSION}/${instagramBusinessAccountId}`, {
       params: {
         fields: 'id,username,name',
         access_token: pageAccessToken

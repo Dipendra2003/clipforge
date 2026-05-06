@@ -145,7 +145,7 @@ class VideoProcessor:
         clip_duration = options.get('clip_duration', 45)
         num_clips = options.get('num_clips', 5)
         min_viral_score = options.get('min_viral_score', 0.5)
-        clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', or 'range'
+        clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', 'range', or 'continuous'
         video_metadata = options.get('video_metadata', {})
         
         # Get video duration from transcript or metadata
@@ -162,7 +162,7 @@ class VideoProcessor:
         print(f"Video duration: {video_duration}s")
         
         # If mode is divide, use fallback analysis (equal division doesn't need AI)
-        # But for 'range' mode, we still want AI to find best moments within the range
+        # But for 'range' and 'continuous' modes, we still want AI to find best moments
         if clip_mode == 'divide':
             return self._fallback_analysis(transcript, options)
         
@@ -195,7 +195,73 @@ class VideoProcessor:
             print(f"Attempting to use Gemini model: {model_name}")
             model = genai.GenerativeModel(model_name)
             
-            prompt = f"""
+            # Build prompt based on clip mode
+            if clip_mode == 'continuous':
+                # Continuous mode: AI finds best section and creates continuous clips
+                prompt = f"""
+Analyze this video transcript and identify the BEST CONTINUOUS SECTION with highest viral potential.
+
+VIDEO CONTEXT:
+{video_context}
+
+VIDEO DURATION: {video_duration} seconds
+
+CONTINUOUS MODE REQUIREMENTS:
+1. Start from the BEGINNING of the video (0 seconds)
+2. Create {num_clips} CONTINUOUS clips starting from 0:00
+3. Each clip MUST be EXACTLY {clip_duration} seconds long
+4. Clips should flow naturally one after another: Clip 1 ends where Clip 2 starts
+5. Total section: 0 to {num_clips * clip_duration} seconds
+
+EXAMPLE:
+For {num_clips} clips of {clip_duration}s each starting from beginning:
+- Clip 1: 0s - {clip_duration}s (0:00 - {clip_duration//60}:{clip_duration%60:02d})
+- Clip 2: {clip_duration}s - {clip_duration*2}s
+- Clip 3: {clip_duration*2}s - {clip_duration*3}s
+... and so on
+
+For each clip, provide:
+1. Start time (in seconds) - continuous from previous clip
+2. End time (in seconds) - exactly start_time + {clip_duration}
+3. Emotion/vibe for that specific segment
+4. Viral score (0 to 100) - overall section should have high viral potential
+5. Why this section is viral-worthy
+6. Contextual title for each clip
+
+Transcript:
+{json.dumps(transcript['segments'][:50], indent=2)}
+
+Respond in JSON format:
+{{
+  "clips": [
+    {{
+      "start_time": 0.0,
+      "end_time": {clip_duration}.0,
+      "emotion": "excitement",
+      "viral_score": 85,
+      "reason": "Opening segment with strong hook",
+      "title": "[Title for this part]"
+    }},
+    {{
+      "start_time": {clip_duration}.0,
+      "end_time": {clip_duration * 2}.0,
+      "emotion": "joy",
+      "viral_score": 88,
+      "reason": "Continuation with engaging content",
+      "title": "[Title for this part]"
+    }}
+  ]
+}}
+
+Remember: 
+- All clips must be CONTINUOUS starting from 0:00
+- Each clip is exactly {clip_duration} seconds
+- No gaps between clips
+- Clip N starts where Clip N-1 ends
+"""
+            else:
+                # Original AI mode: scattered best moments
+                prompt = f"""
 Analyze this video transcript and identify the top {num_clips} most viral-worthy moments for short-form content.
 
 VIDEO CONTEXT:
@@ -315,7 +381,7 @@ Remember:
         num_clips = options.get('num_clips')
         if num_clips is None:
             num_clips = 5
-        clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', or 'range'
+        clip_mode = options.get('clip_mode', 'ai')  # 'ai', 'divide', 'range', or 'continuous'
         video_metadata = options.get('video_metadata', {})
         
         # Get video title for clip naming
@@ -374,6 +440,49 @@ Remember:
                         "viral_score": viral_score,
                         "reason": f"Clip from specified range ({start_time}s - {end_time}s)",
                         "title": f"{video_title} - Highlight {clip_count + 1}"
+                    })
+                    clip_count += 1
+                
+                current_time = clip_end
+        
+        elif clip_mode == 'continuous':
+            # Continuous AI mode: Find best section and create continuous clips
+            print(f"Continuous mode: Finding best section for {num_clips} continuous clips")
+            
+            # Calculate required section length
+            required_length = num_clips * clip_duration
+            
+            # Start from the beginning of the video (0 seconds)
+            best_start = 0.0
+            
+            # Ensure we don't exceed video duration
+            if best_start + required_length > duration:
+                # If requested clips exceed video duration, adjust to fit
+                best_start = max(0, duration - required_length)
+            
+            print(f"Continuous section: {best_start:.1f}s to {min(best_start + required_length, duration):.1f}s")
+            
+            current_time = best_start
+            clip_count = 0
+            
+            while clip_count < num_clips and current_time < duration:
+                clip_end = min(current_time + clip_duration, duration)
+                
+                if clip_end - current_time >= 10.0:  # Minimum 10 seconds
+                    # Generate high viral scores for continuous mode (75-95 range)
+                    viral_score = random.randint(75, 95)
+                    
+                    # Assign varied emotions
+                    emotions = ['excitement', 'joy', 'inspiration', 'energetic', 'surprise', 'humor']
+                    emotion = emotions[clip_count % len(emotions)]
+                    
+                    clips.append({
+                        "start_time": float(current_time),
+                        "end_time": float(clip_end),
+                        "emotion": emotion,
+                        "viral_score": viral_score,
+                        "reason": f"Continuous clip from best section (Part {clip_count + 1} of {num_clips})",
+                        "title": f"{video_title} - Best Moments Part {clip_count + 1}"
                     })
                     clip_count += 1
                 

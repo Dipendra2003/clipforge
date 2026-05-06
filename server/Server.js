@@ -15,6 +15,8 @@ import platformRoutes from './routes/platform.js';
 import postRoutes from './routes/post.js';
 import aiRoutes from './routes/ai.js';
 import analyticsRoutes from './routes/analytics.js';
+import contactRoutes from './routes/contact.js';
+import notificationRoutes from './routes/notification.js';
 import { setupCleanupJobs } from './utils/cleanup.js';
 import { initScheduler } from './services/scheduler.js';
 import { initAnalyticsScheduler } from './services/analyticsScheduler.js';
@@ -70,6 +72,8 @@ app.use('/api/platform', platformRoutes);
 app.use('/api/post', postRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

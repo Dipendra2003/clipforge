@@ -8,6 +8,9 @@ const router = express.Router();
 // Post clip to YouTube
 router.post('/youtube', authenticate, apiLimiter, postController.postToYouTube);
 
+// Post clip to Instagram
+router.post('/instagram', authenticate, apiLimiter, postController.postToInstagram);
+
 // Get user's published posts
 router.get('/my-posts', authenticate, apiLimiter, postController.getPublishedPosts);
 
@@ -19,6 +22,9 @@ router.delete('/:postId', authenticate, apiLimiter, postController.deletePost);
 
 // Verify if YouTube video still exists
 router.get('/:postId/verify', authenticate, apiLimiter, postController.verifyYouTubeVideo);
+
+// Verify if Instagram post still exists
+router.get('/:postId/verify-instagram', authenticate, apiLimiter, postController.verifyInstagramPost);
 
 // Get scheduled posts
 router.get('/scheduled', authenticate, apiLimiter, postController.getScheduledPosts);

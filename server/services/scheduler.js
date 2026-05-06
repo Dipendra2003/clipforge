@@ -1,58 +1,17 @@
 import cron from 'node-cron';
 import { google } from 'googleapis';
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import PublishedPost from '../models/PublishedPost.js';
 import PlatformConnection from '../models/PlatformConnection.js';
 import Clip from '../models/Clip.js';
 import logger from '../utils/logger.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { ensureValidYouTubeConnection, getYouTubeClient } from '../utils/youtubeAuth.js';
+import { ensureClipExists, createClipReadStream } from '../utils/clipStorage.js';
+import { sendScheduledPostReminders } from './notificationService.js';
 
 const YOUTUBE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const YOUTUBE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_REDIRECT_URI = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/youtube/callback`;
-
-// Refresh YouTube access token if expired
-async function refreshYouTubeToken(connection) {
-  try {
-    const oauth2Client = new google.auth.OAuth2(
-      YOUTUBE_CLIENT_ID,
-      YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      refresh_token: connection.refresh_token
-    });
-
-    const { credentials } = await oauth2Client.refreshAccessToken();
-    
-    const expiresAt = new Date(credentials.expiry_date);
-    await PlatformConnection.updateTokens(
-      connection.user_id,
-      'youtube',
-      credentials.access_token,
-      expiresAt
-    );
-
-    logger.info('YouTube token refreshed for scheduled post', { 
-      userId: connection.user_id,
-      expiresAt 
-    });
-
-    return credentials.access_token;
-  } catch (error) {
-    logger.error('Token refresh error in scheduler', { 
-      error: error.message,
-      userId: connection.user_id
-    });
-    throw new Error('Failed to refresh YouTube token');
-  }
-}
 
 // Process all scheduled posts that are due
 async function processScheduledPosts() {
@@ -137,20 +96,8 @@ async function publishScheduledVideo(post) {
       throw new Error('Clip not found');
     }
 
-    // Get YouTube connection
-    let connection = await PlatformConnection.findByUserAndPlatform(post.user_id, 'youtube');
-    if (!connection) {
-      throw new Error('YouTube not connected');
-    }
-
-    // Check if token is expired and refresh if needed
-    if (PlatformConnection.isTokenExpired(connection)) {
-      logger.info('YouTube token expired, refreshing for scheduled post...', { 
-        userId: post.user_id 
-      });
-      const newAccessToken = await refreshYouTubeToken(connection);
-      connection.access_token = newAccessToken;
-    }
+    // Get YouTube connection and ensure it's valid
+    const connection = await ensureValidYouTubeConnection(post.user_id);
 
     // Update status to uploading
     await PublishedPost.updateStatus(post.id, 'uploading');
@@ -160,33 +107,15 @@ async function publishScheduledVideo(post) {
     logger.info('Clip ready for scheduled upload', { clipPath });
 
     // Initialize YouTube API
-    const oauth2Client = new google.auth.OAuth2(
-      YOUTUBE_CLIENT_ID,
-      YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_REDIRECT_URI
-    );
-
-    oauth2Client.setCredentials({
-      access_token: connection.access_token,
-      refresh_token: connection.refresh_token
-    });
-
-    const youtube = google.youtube({
-      version: 'v3',
-      auth: oauth2Client
-    });
+    const youtube = getYouTubeClient(connection);
 
     // Get privacy setting from metadata (default to public)
     const privacy = post.metadata?.privacy || 'public';
     const videoTitle = post.title || 'Untitled';
     const videoDescription = post.caption || clip.transcript || 'Created with ClipForge AI';
 
-    // Upload video to YouTube
-    const fileSize = fs.statSync(clipPath).size;
-    
     logger.info('Uploading scheduled video to YouTube', { 
       title: videoTitle,
-      fileSize,
       privacy,
       channelId: connection.platform_user_id
     });
@@ -207,7 +136,7 @@ async function publishScheduledVideo(post) {
         }
       },
       media: {
-        body: fs.createReadStream(clipPath)
+        body: createClipReadStream(clipPath)
       }
     });
 
@@ -269,90 +198,24 @@ async function publishScheduledVideo(post) {
   }
 }
 
-// Helper function to download clip from Cloudinary if needed
-async function ensureClipExists(clip) {
-  const axios = (await import('axios')).default;
-  
-  // Prioritize cloud_url if available
-  let clipUrl = clip.cloud_url || clip.file_path;
-  
-  // Check if it's a Cloudinary URL
-  if (clipUrl && (clipUrl.startsWith('http://') || clipUrl.startsWith('https://'))) {
-    // Extract filename from URL
-    const urlParts = clipUrl.split('/');
-    const filename = urlParts[urlParts.length - 1];
-    const localPath = path.join(__dirname, '..', 'downloads', 'clips', filename);
-    
-    // Check if file already exists locally
-    if (fs.existsSync(localPath)) {
-      logger.info('Clip already exists locally', { localPath });
-      return localPath;
-    }
-    
-    // Download from Cloudinary
-    logger.info('Downloading clip from Cloudinary for scheduled upload', { url: clipUrl, localPath });
-    
-    // Ensure directory exists
-    const dir = path.dirname(localPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    try {
-      const response = await axios({
-        method: 'GET',
-        url: clipUrl,
-        responseType: 'stream'
-      });
-      
-      const writer = fs.createWriteStream(localPath);
-      response.data.pipe(writer);
-      
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
-      
-      logger.info('Clip downloaded successfully', { localPath });
-      return localPath;
-    } catch (error) {
-      logger.error('Failed to download clip from Cloudinary', { 
-        error: error.message, 
-        url: clipUrl 
-      });
-      throw new Error(`Failed to download clip: ${error.message}`);
-    }
-  }
-  
-  // Handle local paths (fallback)
-  let clipPath = clip.file_path;
-  
-  // Fix duplicate downloads/ prefix issue
-  if (clipPath && clipPath.includes('downloads/downloads')) {
-    clipPath = clipPath.replace(/downloads\/downloads/g, 'downloads');
-  }
-  
-  if (clipPath && (clipPath.startsWith('downloads/') || clipPath.startsWith('downloads\\'))) {
-    clipPath = path.join(__dirname, '..', clipPath);
-  } else if (clipPath && !path.isAbsolute(clipPath)) {
-    clipPath = path.join(__dirname, '..', 'downloads', 'clips', clipPath);
-  }
-  
-  if (clipPath && fs.existsSync(clipPath)) {
-    return clipPath;
-  }
-  
-  throw new Error(`Clip file not available. No valid cloud_url or local file_path found.`);
-}
-
 // Initialize scheduler
 export function initScheduler() {
-  // Run every minute
+  // Run every minute - check for scheduled posts to publish
   cron.schedule('* * * * *', async () => {
     await processScheduledPosts();
   });
 
-  logger.info('Scheduler initialized - checking for scheduled posts every minute');
+  // Run every day at 9 AM IST - send scheduled post reminders
+  cron.schedule('0 9 * * *', async () => {
+    logger.info('Running scheduled post reminder job...');
+    await sendScheduledPostReminders();
+  }, {
+    timezone: 'Asia/Kolkata'
+  });
+
+  logger.info('Scheduler initialized:');
+  logger.info('  - Checking for scheduled posts every minute');
+  logger.info('  - Sending post reminders daily at 9 AM IST');
 }
 
 export default { initScheduler, processScheduledPosts, publishScheduledVideo };

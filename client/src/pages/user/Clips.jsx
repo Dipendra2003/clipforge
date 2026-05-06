@@ -130,11 +130,24 @@ function Clips() {
     return youtubeConn && youtubeConn.platformUserId && !youtubeConn.isExpired;
   };
 
+  const isInstagramConnected = () => {
+    const instagramConn = platformConnections.find(conn => conn.platform === 'instagram');
+    return instagramConn && instagramConn.platformUserId && !instagramConn.isExpired;
+  };
+
   const getYouTubeConnectionStatus = () => {
     const youtubeConn = platformConnections.find(conn => conn.platform === 'youtube');
     if (!youtubeConn) return { connected: false, message: 'Not connected' };
     if (!youtubeConn.platformUserId) return { connected: false, message: 'Invalid connection' };
     if (youtubeConn.isExpired) return { connected: false, message: 'Connection expired' };
+    return { connected: true, message: 'Connected' };
+  };
+
+  const getInstagramConnectionStatus = () => {
+    const instagramConn = platformConnections.find(conn => conn.platform === 'instagram');
+    if (!instagramConn) return { connected: false, message: 'Not connected' };
+    if (!instagramConn.platformUserId) return { connected: false, message: 'Invalid connection' };
+    if (instagramConn.isExpired) return { connected: false, message: 'Connection expired' };
     return { connected: true, message: 'Connected' };
   };
 
@@ -146,21 +159,25 @@ function Clips() {
     return postedClips[clipId];
   };
 
-  const handleOpenPostModal = (clip) => {
-    const status = getYouTubeConnectionStatus();
+  const handleOpenPostModal = (clip, platform = 'youtube') => {
+    const status = platform === 'youtube' 
+      ? getYouTubeConnectionStatus() 
+      : getInstagramConnectionStatus();
+    
+    const platformName = platform === 'youtube' ? 'YouTube' : 'Instagram';
     
     if (!status.connected) {
       if (status.message === 'Connection expired') {
-        toast.error('YouTube connection expired. Please reconnect in Settings.');
+        toast.error(`${platformName} connection expired. Please reconnect in Settings.`);
       } else if (status.message === 'Invalid connection') {
-        toast.error('YouTube connection is invalid. Please reconnect in Settings.');
+        toast.error(`${platformName} connection is invalid. Please reconnect in Settings.`);
       } else {
-        toast.error('Please connect YouTube in Settings first');
+        toast.error(`Please connect ${platformName} in Settings first`);
       }
       return;
     }
 
-    setShowPostModal(clip);
+    setShowPostModal({ clip, platform });
   };
 
   const handlePostSuccess = (postData) => {
@@ -349,8 +366,16 @@ function Clips() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'date-desc':
+          // Sort by video first, then by start_time within the same video
+          if (a.video_id === b.video_id) {
+            return a.start_time - b.start_time; // Clips from same video: show in chronological order
+          }
           return new Date(b.created_at) - new Date(a.created_at);
         case 'date-asc':
+          // Sort by video first, then by start_time within the same video
+          if (a.video_id === b.video_id) {
+            return a.start_time - b.start_time; // Clips from same video: show in chronological order
+          }
           return new Date(a.created_at) - new Date(b.created_at);
         case 'viral-desc':
           return (Number(b.viral_score) || 0) - (Number(a.viral_score) || 0);
@@ -921,13 +946,13 @@ function Clips() {
                         {getPostData(clip.id).status === 'pending' && (
                           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200">
                             <span className="animate-spin">⏳</span>
-                            <span className="font-medium">Uploading to YouTube...</span>
+                            <span className="font-medium">Uploading to {getPostData(clip.id).platform === 'instagram' ? 'Instagram' : 'YouTube'}...</span>
                           </div>
                         )}
                         {getPostData(clip.id).status === 'uploading' && (
                           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200">
                             <span className="animate-spin">⏳</span>
-                            <span className="font-medium">Uploading to YouTube...</span>
+                            <span className="font-medium">Uploading to {getPostData(clip.id).platform === 'instagram' ? 'Instagram' : 'YouTube'}...</span>
                           </div>
                         )}
                         {getPostData(clip.id).status === 'scheduled' && (
@@ -938,7 +963,7 @@ function Clips() {
                         )}
                         {getPostData(clip.id).status === 'published' && (
                           <div className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg border border-green-200">
-                            <span className="font-medium">✅ Posted to YouTube</span>
+                            <span className="font-medium">✅ Posted to {getPostData(clip.id).platform === 'instagram' ? 'Instagram' : 'YouTube'}</span>
                           </div>
                         )}
                         
@@ -1003,52 +1028,80 @@ function Clips() {
                       </div>
                     ) : (
                       <>
+                        {/* Download Button */}
+                        <a 
+                          href={getVideoUrl(clip.file_path, clip.cloud_url)}
+                          download={`${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const url = getVideoUrl(clip.file_path, clip.cloud_url);
+                            fetch(url)
+                              .then(response => response.blob())
+                              .then(blob => {
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = `${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                                toast.success('Downloading clip...');
+                              })
+                              .catch(error => {
+                                console.error('Download error:', error);
+                                toast.error('Failed to download clip');
+                              });
+                          }}
+                          className="block w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm text-center"
+                        >
+                          📥 Download
+                        </a>
+
+                        {/* Platform Post Buttons */}
                         <div className="flex gap-2">
-                          <a 
-                            href={getVideoUrl(clip.file_path, clip.cloud_url)}
-                            download={`${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const url = getVideoUrl(clip.file_path, clip.cloud_url);
-                              fetch(url)
-                                .then(response => response.blob())
-                                .then(blob => {
-                                  const blobUrl = window.URL.createObjectURL(blob);
-                                  const link = document.createElement('a');
-                                  link.href = blobUrl;
-                                  link.download = `${clip.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.mp4`;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                  window.URL.revokeObjectURL(blobUrl);
-                                  toast.success('Downloading clip...');
-                                })
-                                .catch(error => {
-                                  console.error('Download error:', error);
-                                  toast.error('Failed to download clip');
-                                });
-                            }}
-                            className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm text-center"
-                          >
-                            📥 Download
-                          </a>
+                          {/* YouTube Button */}
                           <button
-                            onClick={() => handleOpenPostModal(clip)}
+                            onClick={() => handleOpenPostModal(clip, 'youtube')}
                             disabled={!isYouTubeConnected()}
                             className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!isYouTubeConnected() ? getYouTubeConnectionStatus().message : 'Post to YouTube'}
                           >
-                            ▶️ Post to YouTube
+                            ▶️ YouTube
+                          </button>
+
+                          {/* Instagram Button */}
+                          <button
+                            onClick={() => handleOpenPostModal(clip, 'instagram')}
+                            disabled={!isInstagramConnected()}
+                            className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!isInstagramConnected() ? getInstagramConnectionStatus().message : 'Post to Instagram'}
+                          >
+                            📷 Instagram
                           </button>
                         </div>
-                        {!isYouTubeConnected() && (
-                          <div className="text-xs text-center">
-                            <span className="text-gray-500">
-                              {getYouTubeConnectionStatus().message === 'Connection expired' 
-                                ? '⚠️ YouTube connection expired - Reconnect in Settings'
-                                : getYouTubeConnectionStatus().message === 'Invalid connection'
-                                ? '⚠️ YouTube connection invalid - Reconnect in Settings'
-                                : 'Connect YouTube in Settings to post clips'}
-                            </span>
+
+                        {/* Connection Status Messages */}
+                        {(!isYouTubeConnected() || !isInstagramConnected()) && (
+                          <div className="text-xs text-center space-y-1">
+                            {!isYouTubeConnected() && (
+                              <div className="text-gray-500">
+                                {getYouTubeConnectionStatus().message === 'Connection expired' 
+                                  ? '⚠️ YouTube connection expired - Reconnect in Settings'
+                                  : getYouTubeConnectionStatus().message === 'Invalid connection'
+                                  ? '⚠️ YouTube connection invalid - Reconnect in Settings'
+                                  : '⚠️ Connect YouTube in Settings to post'}
+                              </div>
+                            )}
+                            {!isInstagramConnected() && (
+                              <div className="text-gray-500">
+                                {getInstagramConnectionStatus().message === 'Connection expired' 
+                                  ? '⚠️ Instagram connection expired - Reconnect in Settings'
+                                  : getInstagramConnectionStatus().message === 'Invalid connection'
+                                  ? '⚠️ Instagram connection invalid - Reconnect in Settings'
+                                  : '⚠️ Connect Instagram in Settings to post'}
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
@@ -1089,6 +1142,17 @@ function Clips() {
                         🗑️
                       </button>
                     </div>
+
+                    {/* View Analytics Button - Only show if clip is posted */}
+                    {isClipPosted(clip.id) && getPostData(clip.id).status === 'published' && (
+                      <button
+                        onClick={() => window.location.href = `/dashboard/analytics/clip/${clip.id}`}
+                        className="w-full px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition text-sm font-medium flex items-center justify-center gap-2 mt-2"
+                        title="View detailed analytics"
+                      >
+                        📊 View Analytics
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1155,7 +1219,8 @@ function Clips() {
       {/* Post Modal */}
       {showPostModal && (
         <PostModal
-          clip={showPostModal}
+          clip={showPostModal.clip}
+          initialPlatform={showPostModal.platform}
           onClose={() => setShowPostModal(null)}
           onSuccess={handlePostSuccess}
         />

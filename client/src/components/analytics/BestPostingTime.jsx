@@ -75,66 +75,66 @@ function BestPostingTime({ topClips }) {
   const timeCategory = bestHour !== null ? getTimeCategory(bestHour) : null;
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 mb-8">
-      <h2 className="text-xl font-bold text-gray-900 mb-4">⏰ Best Posting Time</h2>
+    <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6 mb-6 sm:mb-8">
+      <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">⏰ Best Posting Time</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         {/* Best Hour */}
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <span className="text-3xl">{timeCategory?.icon || '⏰'}</span>
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+            <span className="text-2xl sm:text-3xl">{timeCategory?.icon || '⏰'}</span>
             <div>
-              <p className="text-sm text-purple-600 font-medium">Best Time to Post</p>
-              <p className="text-2xl font-bold text-purple-900">{formatHour(bestHour)}</p>
+              <p className="text-xs sm:text-sm text-purple-600 font-medium">Best Time to Post</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-900">{formatHour(bestHour)}</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-purple-700">Time of Day:</span>
               <span className="font-semibold text-purple-900">{timeCategory?.label || 'N/A'}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-purple-700">Avg Views:</span>
               <span className="font-semibold text-purple-900">{Math.round(bestHourAvgViews).toLocaleString()}</span>
             </div>
           </div>
-          <p className="text-xs text-purple-600 mt-3">
+          <p className="text-xs text-purple-600 mt-2 sm:mt-3">
             Posts at this time get the most views on average
           </p>
         </div>
 
         {/* Best Day */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <span className="text-3xl">📅</span>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 sm:p-6">
+          <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+            <span className="text-2xl sm:text-3xl">📅</span>
             <div>
-              <p className="text-sm text-blue-600 font-medium">Best Day to Post</p>
-              <p className="text-2xl font-bold text-blue-900">{bestDay || 'N/A'}</p>
+              <p className="text-xs sm:text-sm text-blue-600 font-medium">Best Day to Post</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-900">{bestDay || 'N/A'}</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-blue-700">Posts on this day:</span>
               <span className="font-semibold text-blue-900">{dayAnalysis[bestDay]?.count || 0}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-blue-700">Avg Views:</span>
               <span className="font-semibold text-blue-900">{Math.round(bestDayAvgViews).toLocaleString()}</span>
             </div>
           </div>
-          <p className="text-xs text-blue-600 mt-3">
+          <p className="text-xs text-blue-600 mt-2 sm:mt-3">
             Your audience is most active on this day
           </p>
         </div>
       </div>
 
       {/* Recommendation */}
-      <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
-        <div className="flex items-start space-x-3">
-          <span className="text-2xl">💡</span>
+      <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+        <div className="flex items-start space-x-2 sm:space-x-3">
+          <span className="text-xl sm:text-2xl">💡</span>
           <div>
-            <p className="font-semibold text-gray-900 mb-1">Recommendation</p>
-            <p className="text-sm text-gray-700">
+            <p className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">Recommendation</p>
+            <p className="text-xs sm:text-sm text-gray-700">
               {bestDay && bestHour !== null ? (
                 <>
                   For maximum reach, try posting on <span className="font-semibold text-purple-600">{bestDay}s</span> around{' '}
@@ -149,7 +149,7 @@ function BestPostingTime({ topClips }) {
       </div>
 
       {/* Note */}
-      <p className="text-xs text-gray-500 mt-4 text-center">
+      <p className="text-xs text-gray-500 mt-3 sm:mt-4 text-center">
         Based on analysis of your top {topClips.length} performing clips
       </p>
     </div>

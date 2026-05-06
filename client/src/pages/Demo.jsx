@@ -203,7 +203,7 @@ function Demo() {
       };
       
       // Add mode-specific options
-      if (clipMode === 'ai') {
+      if (clipMode === 'ai' || clipMode === 'continuous') {
         processingOptions.clipDuration = clipDuration;
       } else if (clipMode === 'divide') {
         const divideDuration = divideMinutes * 60 + divideSeconds;
@@ -403,7 +403,7 @@ function Demo() {
       };
       
       // Add mode-specific options
-      if (clipMode === 'ai') {
+      if (clipMode === 'ai' || clipMode === 'continuous') {
         processingOptions.clipDuration = clipDuration;
       } else if (clipMode === 'divide') {
         const divideDuration = divideMinutes * 60 + divideSeconds;

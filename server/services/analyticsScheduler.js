@@ -1,40 +1,72 @@
 import cron from 'node-cron';
 import { syncAllUsersAnalytics } from './youtubeAnalytics.js';
+import { syncAllUsersInstagramAnalytics } from './instagramAnalytics.js';
 import logger from '../utils/logger.js';
 
 /**
  * Initialize analytics sync scheduler
- * Runs every 10 minutes to fetch latest YouTube analytics
+ * Runs every 6 hours to fetch latest YouTube and Instagram analytics
  */
 export function initAnalyticsScheduler() {
-  // Run every 10 minutes
+  // Run every 6 hours
   // Cron format: minute hour day month weekday
-  // '*/10 * * * *' = every 10 minutes
-  cron.schedule('*/10 * * * *', async () => {
+  // '0 */6 * * *' = every 6 hours at minute 0
+  cron.schedule('0 */6 * * *', async () => {
     logger.info('🔄 Starting scheduled analytics sync...');
     
     try {
-      const result = await syncAllUsersAnalytics();
+      // Sync YouTube analytics
+      const youtubeResult = await syncAllUsersAnalytics();
       
-      if (result.success) {
-        logger.info('✅ Scheduled analytics sync completed', {
-          users: result.users,
-          synced: result.synced,
-          failed: result.failed
+      if (youtubeResult.success) {
+        logger.info('✅ YouTube analytics sync completed', {
+          users: youtubeResult.users,
+          synced: youtubeResult.synced,
+          failed: youtubeResult.failed
         });
       } else {
-        logger.error('❌ Scheduled analytics sync failed', {
-          message: result.message
+        logger.error('❌ YouTube analytics sync failed', {
+          message: youtubeResult.message
         });
       }
+
+      // Sync Instagram analytics
+      const instagramResult = await syncAllUsersInstagramAnalytics();
+      
+      if (instagramResult.success) {
+        logger.info('✅ Instagram analytics sync completed', {
+          users: instagramResult.users,
+          synced: instagramResult.synced,
+          failed: instagramResult.failed
+        });
+      } else {
+        logger.error('❌ Instagram analytics sync failed', {
+          message: instagramResult.message
+        });
+      }
+
+      // Log combined results
+      logger.info('✅ All platforms analytics sync completed', {
+        youtube: {
+          users: youtubeResult.users || 0,
+          synced: youtubeResult.synced || 0,
+          failed: youtubeResult.failed || 0
+        },
+        instagram: {
+          users: instagramResult.users || 0,
+          synced: instagramResult.synced || 0,
+          failed: instagramResult.failed || 0
+        }
+      });
     } catch (error) {
       logger.error('❌ Scheduled analytics sync error', {
-        error: error.message
+        error: error.message,
+        stack: error.stack
       });
     }
   });
 
-  logger.info('✅ Analytics scheduler initialized (runs every 10 minutes)');
+  logger.info('✅ Analytics scheduler initialized (runs every 6 hours)');
 }
 
 /**
@@ -44,21 +76,41 @@ export async function runAnalyticsSyncNow() {
   logger.info('🔄 Running analytics sync manually...');
   
   try {
-    const result = await syncAllUsersAnalytics();
+    // Sync YouTube
+    const youtubeResult = await syncAllUsersAnalytics();
     
-    if (result.success) {
-      logger.info('✅ Manual analytics sync completed', {
-        users: result.users,
-        synced: result.synced,
-        failed: result.failed
+    if (youtubeResult.success) {
+      logger.info('✅ Manual YouTube analytics sync completed', {
+        users: youtubeResult.users,
+        synced: youtubeResult.synced,
+        failed: youtubeResult.failed
       });
-      return result;
     } else {
-      logger.error('❌ Manual analytics sync failed', {
-        message: result.message
+      logger.error('❌ Manual YouTube analytics sync failed', {
+        message: youtubeResult.message
       });
-      return result;
     }
+
+    // Sync Instagram
+    const instagramResult = await syncAllUsersInstagramAnalytics();
+    
+    if (instagramResult.success) {
+      logger.info('✅ Manual Instagram analytics sync completed', {
+        users: instagramResult.users,
+        synced: instagramResult.synced,
+        failed: instagramResult.failed
+      });
+    } else {
+      logger.error('❌ Manual Instagram analytics sync failed', {
+        message: instagramResult.message
+      });
+    }
+
+    return {
+      success: true,
+      youtube: youtubeResult,
+      instagram: instagramResult
+    };
   } catch (error) {
     logger.error('❌ Manual analytics sync error', {
       error: error.message

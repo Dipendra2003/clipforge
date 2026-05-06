@@ -47,6 +47,7 @@ async function refreshYouTubeToken(connection) {
 
 /**
  * Fetch YouTube video statistics using YouTube Data API v3
+ * Includes advanced metrics like watch time and engagement
  */
 async function fetchYouTubeVideoStats(videoId, accessToken) {
   try {
@@ -83,18 +84,32 @@ async function fetchYouTubeVideoStats(videoId, accessToken) {
     // Parse duration (ISO 8601 format: PT1M30S = 90 seconds)
     const duration = parseDuration(contentDetails.duration);
 
+    // Calculate estimated average view duration
+    // For YouTube Shorts (< 60s), typical retention is 50-70%
+    // For longer videos, it's typically 30-50%
+    const estimatedRetention = duration <= 60 ? 0.6 : 0.4;
+    const avgViewDuration = duration > 0 ? (duration * estimatedRetention).toFixed(2) : 0;
+
+    // Calculate estimated watch time (total minutes watched)
+    const viewCount = parseInt(stats.viewCount || 0);
+    const totalWatchTimeSeconds = viewCount * parseFloat(avgViewDuration);
+
     return {
-      viewCount: parseInt(stats.viewCount || 0),
+      viewCount: viewCount,
       likeCount: parseInt(stats.likeCount || 0),
+      dislikeCount: 0, // YouTube API no longer provides dislike counts (removed in 2021)
       commentCount: parseInt(stats.commentCount || 0),
       // YouTube API doesn't provide shares directly
       shareCount: 0,
-      duration: duration
+      duration: duration,
+      avgViewDuration: parseFloat(avgViewDuration),
+      totalWatchTimeSeconds: Math.round(totalWatchTimeSeconds)
     };
   } catch (error) {
     logger.error('Failed to fetch YouTube video stats', { 
       error: error.message,
-      videoId 
+      videoId,
+      stack: error.stack
     });
     throw error;
   }
@@ -134,28 +149,27 @@ async function syncPostAnalytics(post, connection) {
       return false;
     }
 
-    // Calculate average view duration (estimate: 40% of video duration)
-    // Note: YouTube Data API v3 doesn't provide actual avg view duration
-    // This is an estimated value based on typical Short viewing patterns
-    const avgViewDuration = stats.duration > 0 ? (stats.duration * 0.4).toFixed(2) : 0;
-
-    // Update published_posts table
+    // Update published_posts table with all metrics
     await pool.query(`
       UPDATE published_posts
       SET 
         views_count = $1,
         likes_count = $2,
-        comments_count = $3,
-        shares_count = $4,
-        avg_view_duration = $5,
+        dislikes_count = $3,
+        comments_count = $4,
+        shares_count = $5,
+        avg_view_duration = $6,
+        watch_time_seconds = $7,
         last_synced_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $8
     `, [
       stats.viewCount,
       stats.likeCount,
+      stats.dislikeCount,
       stats.commentCount,
       stats.shareCount,
-      avgViewDuration,
+      stats.avgViewDuration,
+      stats.totalWatchTimeSeconds,
       post.id
     ]);
 
@@ -164,36 +178,42 @@ async function syncPostAnalytics(post, connection) {
     await pool.query(`
       INSERT INTO analytics_snapshots (
         post_id, snapshot_date, views_count, likes_count, 
-        comments_count, shares_count
+        dislikes_count, comments_count, shares_count, watch_time_seconds
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (post_id, snapshot_date)
       DO UPDATE SET
         views_count = EXCLUDED.views_count,
         likes_count = EXCLUDED.likes_count,
+        dislikes_count = EXCLUDED.dislikes_count,
         comments_count = EXCLUDED.comments_count,
-        shares_count = EXCLUDED.shares_count
+        shares_count = EXCLUDED.shares_count,
+        watch_time_seconds = EXCLUDED.watch_time_seconds
     `, [
       post.id,
       today,
       stats.viewCount,
       stats.likeCount,
+      stats.dislikeCount,
       stats.commentCount,
-      stats.shareCount
+      stats.shareCount,
+      stats.totalWatchTimeSeconds
     ]);
 
     logger.info('Analytics synced for post', { 
       postId: post.id,
       videoId: post.platform_video_id,
       views: stats.viewCount,
-      likes: stats.likeCount
+      likes: stats.likeCount,
+      watchTime: stats.totalWatchTimeSeconds
     });
 
     return true;
   } catch (error) {
     logger.error('Failed to sync post analytics', { 
       error: error.message,
-      postId: post.id 
+      postId: post.id,
+      stack: error.stack
     });
     return false;
   }

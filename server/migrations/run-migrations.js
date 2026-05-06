@@ -9,16 +9,26 @@ const __dirname = dirname(__filename);
 // Load .env from server directory
 dotenv.config({ path: join(__dirname, '../.env') });
 
+/**
+ * FRESH MIGRATION SYSTEM
+ * ⚠️ WARNING: This will DROP ALL TABLES and DELETE ALL DATA!
+ * - Use only for fresh development setup
+ * - Never use in production
+ * - All existing data will be lost
+ */
+
 async function runMigrations() {
   try {
-    console.log('🚀 Starting ClipForge database setup...\n');
+    console.log('🚀 Starting ClipForge FRESH database setup...\n');
+    console.log('⚠️  WARNING: This will DROP ALL EXISTING TABLES!\n');
 
     // Create extension
     await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     console.log('✓ UUID extension created');
 
-    // Drop existing tables
+    // Drop existing tables in correct order (respecting foreign keys)
     await pool.query(`
+      DROP TABLE IF EXISTS notification_preferences CASCADE;
       DROP TABLE IF EXISTS analytics_snapshots CASCADE;
       DROP TABLE IF EXISTS published_posts CASCADE;
       DROP TABLE IF EXISTS platform_connections CASCADE;
@@ -30,7 +40,9 @@ async function runMigrations() {
     `);
     console.log('✓ Dropped existing tables');
 
-    // Create users table
+    // ============================================
+    // CREATE USERS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE users (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -46,7 +58,9 @@ async function runMigrations() {
     `);
     console.log('✓ Created users table');
 
-    // Create sessions table
+    // ============================================
+    // CREATE SESSIONS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE sessions (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -58,7 +72,9 @@ async function runMigrations() {
     `);
     console.log('✓ Created sessions table');
 
-    // Create tokens table
+    // ============================================
+    // CREATE TOKENS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE tokens (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -71,7 +87,9 @@ async function runMigrations() {
     `);
     console.log('✓ Created tokens table');
 
-    // Create videos table
+    // ============================================
+    // CREATE VIDEOS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE videos (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -97,7 +115,9 @@ async function runMigrations() {
     `);
     console.log('✓ Created videos table (supports: upload, youtube, twitter, facebook, instagram, tiktok, url)');
 
-    // Create clips table
+    // ============================================
+    // CREATE CLIPS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE clips (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -122,7 +142,9 @@ async function runMigrations() {
     `);
     console.log('✓ Created clips table');
 
-    // Create platform_connections table
+    // ============================================
+    // CREATE PLATFORM_CONNECTIONS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE platform_connections (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -139,15 +161,17 @@ async function runMigrations() {
         UNIQUE(user_id, platform)
       )
     `);
-    console.log('✓ Created platform_connections table');
+    console.log('✓ Created platform_connections table (YouTube & Instagram)');
 
-    // Create published_posts table
+    // ============================================
+    // CREATE PUBLISHED_POSTS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE published_posts (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         clip_id UUID NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
-        platform VARCHAR(50) NOT NULL CHECK (platform IN ('youtube')),
+        platform VARCHAR(50) NOT NULL CHECK (platform IN ('youtube', 'instagram')),
         platform_video_id VARCHAR(255),
         platform_url TEXT,
         title VARCHAR(255),
@@ -163,15 +187,20 @@ async function runMigrations() {
         watch_time_seconds INTEGER DEFAULT 0,
         avg_view_duration DECIMAL(5,2) DEFAULT 0,
         click_through_rate DECIMAL(5,2) DEFAULT 0,
+        reach_count INTEGER DEFAULT 0,
+        saved_count INTEGER DEFAULT 0,
+        dislikes_count INTEGER DEFAULT 0,
         last_synced_at TIMESTAMP,
         metadata JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✓ Created published_posts table (with analytics columns)');
+    console.log('✓ Created published_posts table (YouTube & Instagram with full analytics)');
 
-    // Create analytics_snapshots table
+    // ============================================
+    // CREATE ANALYTICS_SNAPSHOTS TABLE
+    // ============================================
     await pool.query(`
       CREATE TABLE analytics_snapshots (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -182,26 +211,56 @@ async function runMigrations() {
         comments_count INTEGER DEFAULT 0,
         shares_count INTEGER DEFAULT 0,
         watch_time_seconds INTEGER DEFAULT 0,
+        dislikes_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(post_id, snapshot_date)
       )
     `);
     console.log('✓ Created analytics_snapshots table');
 
-    // Create indexes
+    // ============================================
+    // CREATE NOTIFICATION_PREFERENCES TABLE
+    // ============================================
     await pool.query(`
+      CREATE TABLE notification_preferences (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        email_notifications BOOLEAN DEFAULT TRUE,
+        processing_complete BOOLEAN DEFAULT TRUE,
+        scheduled_posts BOOLEAN DEFAULT TRUE,
+        marketing_emails BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      )
+    `);
+    console.log('✓ Created notification_preferences table');
+
+    // ============================================
+    // CREATE INDEXES
+    // ============================================
+    await pool.query(`
+      -- Users indexes
       CREATE INDEX idx_users_email ON users(email);
       CREATE INDEX idx_users_google_id ON users(google_id);
+      
+      -- Sessions indexes
       CREATE INDEX idx_sessions_user_id ON sessions(user_id);
       CREATE INDEX idx_sessions_refresh_token ON sessions(refresh_token);
+      
+      -- Tokens indexes
       CREATE INDEX idx_tokens_token ON tokens(token);
       CREATE INDEX idx_tokens_user_id ON tokens(user_id);
       CREATE INDEX idx_tokens_expires_at ON tokens(expires_at);
+      
+      -- Videos indexes
       CREATE INDEX idx_videos_user_id ON videos(user_id);
       CREATE INDEX idx_videos_status ON videos(status);
       CREATE INDEX idx_videos_created_at ON videos(created_at DESC);
       CREATE INDEX idx_videos_source_type ON videos(source_type);
       CREATE INDEX idx_videos_cloud_url ON videos(cloud_url) WHERE cloud_url IS NOT NULL;
+      
+      -- Clips indexes
       CREATE INDEX idx_clips_video_id ON clips(video_id);
       CREATE INDEX idx_clips_user_id ON clips(user_id);
       CREATE INDEX idx_clips_status ON clips(status);
@@ -209,30 +268,39 @@ async function runMigrations() {
       CREATE INDEX idx_clips_created_at ON clips(created_at DESC);
       CREATE INDEX idx_clips_emotion ON clips(emotion);
       CREATE INDEX idx_clips_cloud_url ON clips(cloud_url) WHERE cloud_url IS NOT NULL;
+      
+      -- Platform connections indexes
       CREATE INDEX idx_platform_connections_user_id ON platform_connections(user_id);
       CREATE INDEX idx_platform_connections_platform ON platform_connections(platform);
       CREATE INDEX idx_platform_connections_expires_at ON platform_connections(expires_at);
+      
+      -- Published posts indexes
       CREATE INDEX idx_published_posts_user_id ON published_posts(user_id);
       CREATE INDEX idx_published_posts_clip_id ON published_posts(clip_id);
       CREATE INDEX idx_published_posts_platform ON published_posts(platform);
       CREATE INDEX idx_published_posts_status ON published_posts(status);
       CREATE INDEX idx_published_posts_created_at ON published_posts(created_at DESC);
       CREATE INDEX idx_published_posts_clip_platform ON published_posts(clip_id, platform);
+      CREATE INDEX idx_published_posts_user_platform ON published_posts(user_id, platform);
+      CREATE INDEX idx_published_posts_scheduled ON published_posts(status, scheduled_for) WHERE status = 'scheduled' AND scheduled_for IS NOT NULL;
       CREATE INDEX idx_published_posts_views ON published_posts(views_count DESC);
       CREATE INDEX idx_published_posts_likes ON published_posts(likes_count DESC);
+      CREATE INDEX idx_published_posts_dislikes ON published_posts(dislikes_count DESC);
       CREATE INDEX idx_published_posts_last_synced ON published_posts(last_synced_at);
+      
+      -- Analytics snapshots indexes
       CREATE INDEX idx_analytics_snapshots_post_id ON analytics_snapshots(post_id);
       CREATE INDEX idx_analytics_snapshots_date ON analytics_snapshots(snapshot_date DESC);
       CREATE INDEX idx_analytics_snapshots_post_date ON analytics_snapshots(post_id, snapshot_date);
+      
+      -- Notification preferences indexes
+      CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
     `);
-    
-    await pool.query(`
-      CREATE INDEX idx_published_posts_scheduled ON published_posts(status, scheduled_for) 
-      WHERE status = 'scheduled' AND scheduled_for IS NOT NULL;
-    `);
-    console.log('✓ Created indexes (30+ total)');
+    console.log('✓ Created indexes (38+ total)');
 
-    // Create trigger function
+    // ============================================
+    // CREATE TRIGGER FUNCTION
+    // ============================================
     await pool.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
@@ -244,35 +312,47 @@ async function runMigrations() {
     `);
     console.log('✓ Created trigger function');
 
-    // Create triggers
+    // ============================================
+    // CREATE TRIGGERS
+    // ============================================
     await pool.query(`
-      CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+      CREATE TRIGGER update_users_updated_at 
+        BEFORE UPDATE ON users
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-      CREATE TRIGGER update_videos_updated_at BEFORE UPDATE ON videos
+        
+      CREATE TRIGGER update_videos_updated_at 
+        BEFORE UPDATE ON videos
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-      CREATE TRIGGER update_clips_updated_at BEFORE UPDATE ON clips
+        
+      CREATE TRIGGER update_clips_updated_at 
+        BEFORE UPDATE ON clips
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-      CREATE TRIGGER update_platform_connections_updated_at BEFORE UPDATE ON platform_connections
+        
+      CREATE TRIGGER update_platform_connections_updated_at 
+        BEFORE UPDATE ON platform_connections
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-      CREATE TRIGGER update_published_posts_updated_at BEFORE UPDATE ON published_posts
+        
+      CREATE TRIGGER update_published_posts_updated_at 
+        BEFORE UPDATE ON published_posts
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        
+      CREATE TRIGGER update_notification_preferences_updated_at 
+        BEFORE UPDATE ON notification_preferences
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     `);
-    console.log('✓ Created triggers (5 total)');
-
-    // Insert admin user (will be replaced by createAdmin.js script)
-    await pool.query(`
-      INSERT INTO users (name, email, password, role, email_verified)
-      VALUES ('Admin User', 'dipendrak299@gmail.com', '$2a$10$rZ5YvqZqZqZqZqZqZqZqZuK5YvqZqZqZqZqZqZqZqZqZqZqZqZqZq', 'admin', TRUE)
-      ON CONFLICT (email) DO NOTHING
-    `);
-    console.log('✓ Created default admin user');
+    console.log('✓ Created triggers (6 total)');
 
     console.log('\n✅ Database setup complete!\n');
-    console.log('📋 Tables: users, sessions, tokens, videos, clips, platform_connections, published_posts, analytics_snapshots');
-    console.log('📊 Indexes: 30+ indexes for optimal performance');
-    console.log('⚡ Triggers: 5 auto-update triggers\n');
-    console.log('⚠️  IMPORTANT: Run "node scripts/createAdmin.js" to set up your admin account');
-    console.log('   This will remove all existing admins and create a new one with proper credentials.\n');
+    console.log('📋 Tables created:');
+    console.log('   - users, sessions, tokens');
+    console.log('   - videos, clips');
+    console.log('   - platform_connections (YouTube & Instagram)');
+    console.log('   - published_posts, analytics_snapshots');
+    console.log('   - notification_preferences');
+    console.log('📊 Indexes: 38+ indexes for optimal performance');
+    console.log('⚡ Triggers: 6 auto-update triggers');
+    console.log('🌐 Platforms: YouTube & Instagram support enabled\n');
+    console.log('⚠️  IMPORTANT: Run "node scripts/createAdmin.js" to set up your admin account\n');
 
     process.exit(0);
   } catch (error) {

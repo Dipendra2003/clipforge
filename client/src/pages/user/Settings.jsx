@@ -37,9 +37,19 @@ function Settings() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Notification preferences state
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    email_notifications: true,
+    processing_complete: true,
+    scheduled_posts: true,
+    marketing_emails: false
+  });
+  const [notificationLoading, setNotificationLoading] = useState(false);
+
   // Fetch platform connections on mount
   useEffect(() => {
     fetchPlatformConnections();
+    fetchNotificationPreferences();
     
     // Update profile data when user changes
     if (user) {
@@ -89,6 +99,54 @@ function Settings() {
       setPlatformConnections(response.data.connections || []);
     } catch {
       // Silent fail - connections are optional
+    }
+  };
+
+  const fetchNotificationPreferences = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/notifications/preferences`);
+      if (response.data.success && response.data.preferences) {
+        setNotificationPreferences(response.data.preferences);
+      }
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+      // Silent fail - use defaults
+    }
+  };
+
+  const handleNotificationToggle = async (field) => {
+    const newValue = !notificationPreferences[field];
+    
+    // Optimistic update
+    setNotificationPreferences(prev => ({
+      ...prev,
+      [field]: newValue
+    }));
+
+    try {
+      setNotificationLoading(true);
+      const response = await axios.put(`${API_URL}/api/notifications/preferences`, {
+        [field]: newValue
+      });
+
+      if (response.data.success) {
+        toast.success('Notification preferences updated');
+        // Update with server response to ensure consistency
+        if (response.data.preferences) {
+          setNotificationPreferences(response.data.preferences);
+        }
+      }
+    } catch (error) {
+      // Revert on error
+      setNotificationPreferences(prev => ({
+        ...prev,
+        [field]: !newValue
+      }));
+      
+      const message = error.response?.data?.message || 'Failed to update notification preferences';
+      toast.error(message);
+    } finally {
+      setNotificationLoading(false);
     }
   };
 
@@ -283,15 +341,15 @@ function Settings() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Settings</h1>
+    <div className="p-3 sm:p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Settings</h1>
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-scale-in">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">{confirmTitle}</h3>
-            <p className="text-gray-600 mb-6 whitespace-pre-line">{confirmMessage}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 animate-scale-in">
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">{confirmTitle}</h3>
+            <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 whitespace-pre-line">{confirmMessage}</p>
             
             {requiresTyping && (
               <input
@@ -299,25 +357,25 @@ function Settings() {
                 value={typedConfirmation}
                 onChange={(e) => setTypedConfirmation(e.target.value)}
                 placeholder='Type "DELETE" to confirm'
-                className="w-full px-4 py-3 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none mb-6 font-mono text-center text-lg"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none mb-4 sm:mb-6 font-mono text-center text-base sm:text-lg"
                 autoFocus
               />
             )}
             
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <button
                 onClick={() => {
                   setShowConfirmModal(false);
                   setTypedConfirmation('');
                 }}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-semibold"
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-semibold text-sm sm:text-base"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmAction}
                 disabled={requiresTyping && typedConfirmation !== 'DELETE'}
-                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {confirmButtonText}
               </button>
@@ -327,12 +385,12 @@ function Settings() {
       )}
 
       {/* Tabs */}
-      <div className="flex space-x-4 mb-6 border-b">
+      <div className="flex space-x-2 sm:space-x-4 mb-4 sm:mb-6 border-b overflow-x-auto">
         {['profile', 'password', 'accounts', 'notifications'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-3 px-4 font-medium capitalize transition ${
+            className={`pb-2 sm:pb-3 px-2 sm:px-4 font-medium capitalize transition text-sm sm:text-base whitespace-nowrap ${
               activeTab === tab
                 ? 'text-purple-600 border-b-2 border-purple-600'
                 : 'text-gray-500 hover:text-gray-700'
@@ -345,35 +403,35 @@ function Settings() {
 
       {/* Profile Tab */}
       {activeTab === 'profile' && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Profile Information</h2>
-          <form onSubmit={handleProfileSubmit} className="space-y-4">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Profile Information</h2>
+          <form onSubmit={handleProfileSubmit} className="space-y-3 sm:space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Name</label>
               <input
                 type="text"
                 value={profileData.name}
                 onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm sm:text-base"
                 required
                 minLength={2}
                 maxLength={50}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
                 value={user?.email || ''}
                 disabled
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed text-sm sm:text-base"
               />
               <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
             </div>
             <button
               type="submit"
               disabled={profileLoading}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 sm:px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {profileLoading ? 'Saving...' : 'Save Changes'}
             </button>
@@ -383,38 +441,38 @@ function Settings() {
 
       {/* Password Tab */}
       {activeTab === 'password' && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Change Password</h2>
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Change Password</h2>
           {user?.google_id && !user?.password ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-800">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-blue-800">
                 <strong>Google Account:</strong> You signed up with Google and don't have a password set. 
                 You can continue using Google Sign-In or contact support if you need to set a password.
               </p>
             </div>
           ) : (
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <form onSubmit={handlePasswordSubmit} className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Current Password</label>
                 <div className="relative">
                   <input
                     type={showCurrentPassword ? "text" : "password"}
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3 sm:px-4 py-2 pr-10 sm:pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm sm:text-base"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
                     {showCurrentPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
@@ -423,27 +481,27 @@ function Settings() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">New Password</label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? "text" : "password"}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3 sm:px-4 py-2 pr-10 sm:pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm sm:text-base"
                     required
                     minLength={8}
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
                     {showNewPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
@@ -453,26 +511,26 @@ function Settings() {
                 <p className="text-xs text-gray-500 mt-1">At least 8 characters with letters and numbers</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3 sm:px-4 py-2 pr-10 sm:pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm sm:text-base"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
                   >
                     {showConfirmPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                       </svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
@@ -483,7 +541,7 @@ function Settings() {
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 sm:px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 {passwordLoading ? 'Updating...' : 'Update Password'}
               </button>
@@ -494,52 +552,55 @@ function Settings() {
 
       {/* Connected Accounts Tab */}
       {activeTab === 'accounts' && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Connected Accounts</h2>
-          <p className="text-sm text-gray-600 mb-6">
-            Connect your YouTube account to enable posting features. 
-            Platform connection is optional - you can still generate and download clips without connecting.
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Connected Accounts</h2>
+          <p className="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">
+            Connect your social media accounts to enable posting features. 
+            Platform connections are optional - you can still generate and download clips without connecting.
           </p>
           
           {/* Important Notice */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-800">
-              <strong>📌 Important:</strong> You must have a YouTube channel to connect. 
-              If you don't have one, create it at <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="underline">youtube.com</a> first.
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+            <p className="text-xs sm:text-sm text-blue-800">
+              <strong>📌 Important:</strong> You must have accounts on these platforms to connect:
             </p>
+            <ul className="text-xs sm:text-sm text-blue-700 mt-2 ml-4 list-disc space-y-1">
+              <li>YouTube: Requires a YouTube channel (<a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="underline">create one</a>)</li>
+              <li>Instagram: Requires Instagram Business Account connected to a Facebook Page</li>
+            </ul>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* YouTube */}
-            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">▶️</span>
-                <div>
-                  <p className="font-medium text-gray-900">YouTube</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
+                <span className="text-xl sm:text-2xl flex-shrink-0">▶️</span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900 text-sm sm:text-base">YouTube</p>
                   {isPlatformConnected('youtube') ? (
                     <>
                       {isPlatformExpired('youtube') ? (
-                        <p className="text-sm text-orange-600">
+                        <p className="text-xs sm:text-sm text-orange-600 truncate">
                           ⚠️ Connection expired - <strong>{getPlatformUsername('youtube')}</strong>
                         </p>
                       ) : (
-                        <p className="text-sm text-green-600">
+                        <p className="text-xs sm:text-sm text-green-600 truncate">
                           ✓ Connected as <strong>{getPlatformUsername('youtube')}</strong>
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className="text-sm text-gray-500">Not connected</p>
+                    <p className="text-xs sm:text-sm text-gray-500">Not connected</p>
                   )}
                 </div>
               </div>
               {isPlatformConnected('youtube') ? (
-                <div className="flex gap-2">
+                <div className="flex gap-2 w-full sm:w-auto">
                   {isPlatformExpired('youtube') && (
                     <button
                       onClick={() => handleConnectPlatform('youtube')}
                       disabled={loading}
-                      className="px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition disabled:opacity-50"
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition disabled:opacity-50 text-xs sm:text-sm"
                     >
                       Reconnect
                     </button>
@@ -547,7 +608,7 @@ function Settings() {
                   <button
                     onClick={() => handleDisconnectPlatform('youtube')}
                     disabled={loading}
-                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50 text-xs sm:text-sm"
                   >
                     Disconnect
                   </button>
@@ -556,7 +617,60 @@ function Settings() {
                 <button
                   onClick={() => handleConnectPlatform('youtube')}
                   disabled={loading}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
+                  className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 text-xs sm:text-sm"
+                >
+                  {loading ? 'Connecting...' : 'Connect'}
+                </button>
+              )}
+            </div>
+
+            {/* Instagram */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
+                <span className="text-xl sm:text-2xl flex-shrink-0">📷</span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900 text-sm sm:text-base">Instagram</p>
+                  {isPlatformConnected('instagram') ? (
+                    <>
+                      {isPlatformExpired('instagram') ? (
+                        <p className="text-xs sm:text-sm text-orange-600 truncate">
+                          ⚠️ Connection expired - <strong>{getPlatformUsername('instagram')}</strong>
+                        </p>
+                      ) : (
+                        <p className="text-xs sm:text-sm text-green-600 truncate">
+                          ✓ Connected as <strong>{getPlatformUsername('instagram')}</strong>
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-gray-500">Not connected</p>
+                  )}
+                </div>
+              </div>
+              {isPlatformConnected('instagram') ? (
+                <div className="flex gap-2 w-full sm:w-auto">
+                  {isPlatformExpired('instagram') && (
+                    <button
+                      onClick={() => handleConnectPlatform('instagram')}
+                      disabled={loading}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition disabled:opacity-50 text-xs sm:text-sm"
+                    >
+                      Reconnect
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDisconnectPlatform('instagram')}
+                    disabled={loading}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50 text-xs sm:text-sm"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleConnectPlatform('instagram')}
+                  disabled={loading}
+                  className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition disabled:opacity-50 text-xs sm:text-sm"
                 >
                   {loading ? 'Connecting...' : 'Connect'}
                 </button>
@@ -568,23 +682,45 @@ function Settings() {
 
       {/* Notifications Tab */}
       {activeTab === 'notifications' && (
-        <div className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Notification Settings</h2>
-          <div className="space-y-4">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">Notification Settings</h2>
+          <div className="space-y-3 sm:space-y-4">
             {[
-              { label: 'Email notifications', description: 'Receive email updates about your clips' },
-              { label: 'Processing complete', description: 'Get notified when video processing is done' },
-              { label: 'Scheduled posts', description: 'Reminders about upcoming scheduled posts' },
-              { label: 'Marketing emails', description: 'Receive tips and product updates' },
+              { 
+                key: 'email_notifications',
+                label: 'Email notifications', 
+                description: 'Receive email updates about your clips' 
+              },
+              { 
+                key: 'processing_complete',
+                label: 'Processing complete', 
+                description: 'Get notified when video processing is done' 
+              },
+              { 
+                key: 'scheduled_posts',
+                label: 'Scheduled posts', 
+                description: 'Reminders about upcoming scheduled posts' 
+              },
+              { 
+                key: 'marketing_emails',
+                label: 'Marketing emails', 
+                description: 'Receive tips and product updates' 
+              },
             ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">{item.label}</p>
-                  <p className="text-sm text-gray-500">{item.description}</p>
+              <div key={item.key} className="flex items-center justify-between gap-3 p-3 sm:p-4 border border-gray-200 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm sm:text-base">{item.label}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">{item.description}</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={notificationPreferences[item.key]}
+                    onChange={() => handleNotificationToggle(item.key)}
+                    disabled={notificationLoading}
+                  />
+                  <div className="w-9 h-5 sm:w-11 sm:h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-purple-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                 </label>
               </div>
             ))}

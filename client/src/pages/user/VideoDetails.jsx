@@ -137,21 +137,38 @@ function VideoDetails() {
     return { connected: true, message: 'Connected' };
   };
 
-  const handleOpenPostModal = (clip) => {
-    const status = getYouTubeConnectionStatus();
+  const isInstagramConnected = () => {
+    const instagramConn = platformConnections.find(conn => conn.platform === 'instagram');
+    return instagramConn && instagramConn.platformUserId && !instagramConn.isExpired;
+  };
+
+  const getInstagramConnectionStatus = () => {
+    const instagramConn = platformConnections.find(conn => conn.platform === 'instagram');
+    if (!instagramConn) return { connected: false, message: 'Not connected' };
+    if (!instagramConn.platformUserId) return { connected: false, message: 'Invalid connection' };
+    if (instagramConn.isExpired) return { connected: false, message: 'Connection expired' };
+    return { connected: true, message: 'Connected' };
+  };
+
+  const handleOpenPostModal = (clip, platform = 'youtube') => {
+    const status = platform === 'youtube' 
+      ? getYouTubeConnectionStatus() 
+      : getInstagramConnectionStatus();
+    
+    const platformName = platform === 'youtube' ? 'YouTube' : 'Instagram';
     
     if (!status.connected) {
       if (status.message === 'Connection expired') {
-        toast.error('YouTube connection expired. Please reconnect in Settings.');
+        toast.error(`${platformName} connection expired. Please reconnect in Settings.`);
       } else if (status.message === 'Invalid connection') {
-        toast.error('YouTube connection is invalid. Please reconnect in Settings.');
+        toast.error(`${platformName} connection is invalid. Please reconnect in Settings.`);
       } else {
-        toast.error('Please connect YouTube in Settings first');
+        toast.error(`Please connect ${platformName} in Settings first`);
       }
       return;
     }
 
-    setShowPostModal(clip);
+    setShowPostModal({ clip, platform });
   };
 
   const handlePostSuccess = (postData) => {
@@ -485,7 +502,8 @@ function VideoDetails() {
         filteredClips.sort((a, b) => (b.duration || 0) - (a.duration || 0));
         break;
       default:
-        // Keep original order
+        // Sort by start_time to show clips in chronological order (#1, #2, #3...)
+        filteredClips.sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
         break;
     }
     
@@ -527,15 +545,15 @@ function VideoDetails() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       <button 
         onClick={() => navigate('/dashboard/videos')}
-        className="mb-6 text-purple-600 hover:text-purple-700 flex items-center"
+        className="mb-4 sm:mb-6 text-purple-600 hover:text-purple-700 flex items-center text-sm sm:text-base"
       >
         ← Back to Videos
       </button>
 
-      <div className="bg-white rounded-xl shadow overflow-hidden mb-6">
+      <div className="bg-white rounded-lg sm:rounded-xl shadow overflow-hidden mb-4 sm:mb-6">
         <div className="aspect-video bg-gray-900 relative">
           {video.file_path ? (
             <video 
@@ -561,33 +579,33 @@ function VideoDetails() {
           )}
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {editingVideo ? (
-            <div className="space-y-4 mb-4">
+            <div className="space-y-3 sm:space-y-4 mb-3 sm:mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Title</label>
                 <input
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 text-sm sm:text-base"
                   placeholder="Video title"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 text-sm sm:text-base"
                   placeholder="Video description"
                   rows="3"
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={handleSaveEdit}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                  className="px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base"
                 >
                   Save Changes
                 </button>
@@ -597,7 +615,7 @@ function VideoDetails() {
                     setEditTitle(video.title);
                     setEditDescription(video.description || '');
                   }}
-                  className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                  className="px-4 sm:px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition text-sm sm:text-base"
                 >
                   Cancel
                 </button>
@@ -605,101 +623,101 @@ function VideoDetails() {
             </div>
           ) : (
             <>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">{video.title}</h1>
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-0 mb-3 sm:mb-4">
+                <div className="flex-1 w-full sm:w-auto">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 break-words">{video.title}</h1>
                   {video.description && (
-                    <p className="text-gray-600">{video.description}</p>
+                    <p className="text-sm sm:text-base text-gray-600">{video.description}</p>
                   )}
                 </div>
-                <div className="flex gap-2 ml-4">
+                <div className="flex gap-2 w-full sm:w-auto sm:ml-4">
                   <button
                     onClick={() => setEditingVideo(true)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"
                   >
                     ✏️ Edit
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-sm"
                   >
                     🗑️ Delete
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Duration</div>
-                  <div className="font-semibold">{formatDuration(video.duration)}</div>
+                  <div className="font-semibold text-sm sm:text-base">{formatDuration(video.duration)}</div>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">File Size</div>
-                  <div className="font-semibold">{formatFileSize(video.file_size)}</div>
+                  <div className="font-semibold text-sm sm:text-base">{formatFileSize(video.file_size)}</div>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Status</div>
-                  <div className="font-semibold capitalize">{video.status}</div>
+                  <div className="font-semibold capitalize text-sm sm:text-base">{video.status}</div>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Clips</div>
-                  <div className="font-semibold">{clips.length}</div>
+                  <div className="font-semibold text-sm sm:text-base">{clips.length}</div>
                 </div>
               </div>
 
               {/* Video Statistics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                <div className="bg-blue-50 p-2 sm:p-3 rounded-lg border border-blue-200">
                   <div className="text-xs text-blue-600 mb-1">Source</div>
-                  <div className="font-semibold text-blue-900">
+                  <div className="font-semibold text-blue-900 text-xs sm:text-sm truncate">
                     {detectPlatform(video.source_url).icon} {detectPlatform(video.source_url).name}
                   </div>
                 </div>
-                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                <div className="bg-green-50 p-2 sm:p-3 rounded-lg border border-green-200">
                   <div className="text-xs text-green-600 mb-1">Most Popular</div>
-                  <div className="font-semibold text-green-900">
+                  <div className="font-semibold text-green-900 text-xs sm:text-sm">
                     {getMostPopularClip() ? `🔥 ${Number(getMostPopularClip().viral_score).toFixed(0)}%` : 'N/A'}
                   </div>
                 </div>
-                <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                <div className="bg-purple-50 p-2 sm:p-3 rounded-lg border border-purple-200">
                   <div className="text-xs text-purple-600 mb-1">Created</div>
                   <div className="font-semibold text-purple-900 text-xs">
                     {new Date(video.created_at).toLocaleDateString('en-IN')}
                   </div>
                 </div>
-                <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                <div className="bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-200">
                   <div className="text-xs text-orange-600 mb-1">Quality</div>
-                  <div className="font-semibold text-orange-900">
+                  <div className="font-semibold text-orange-900 text-xs sm:text-sm">
                     {video.quality || '720p'}
                   </div>
                 </div>
               </div>
 
               {/* Action Buttons Row */}
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
                 <button
                   onClick={() => setShowShareModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm"
                 >
-                  <span>📤</span> Share
+                  <span>📤</span> <span className="hidden sm:inline">Share</span>
                 </button>
                 <button
                   onClick={handleDownloadOriginal}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 text-sm"
                 >
-                  <span>⬇️</span> Download Original
+                  <span>⬇️</span> <span className="hidden sm:inline">Download</span>
                 </button>
                 <button
                   onClick={handleCopyLink}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center gap-2 text-sm"
                 >
-                  <span>🔗</span> Copy Link
+                  <span>🔗</span> <span className="hidden sm:inline">Copy Link</span>
                 </button>
               </div>
 
               {video.has_subtitles && (
-                <div className="flex items-center text-sm text-green-600 mb-4">
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <div className="flex items-center text-xs sm:text-sm text-green-600 mb-3 sm:mb-4">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
                   </svg>
                   Subtitles available
@@ -804,13 +822,13 @@ function VideoDetails() {
 
       {clips.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Generated Clips ({getFilteredAndSortedClips().length})</h2>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-3 sm:mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Generated Clips ({getFilteredAndSortedClips().length})</h2>
           </div>
 
           {/* Clip Management Controls */}
-          <div className="bg-white rounded-xl shadow p-4 mb-6">
-            <div className="flex flex-wrap items-center gap-4">
+          <div className="bg-white rounded-lg sm:rounded-xl shadow p-3 sm:p-4 mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-4">
               {/* Select All */}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -819,51 +837,51 @@ function VideoDetails() {
                   onChange={toggleSelectAll}
                   className="w-4 h-4 text-purple-600 rounded"
                 />
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-xs sm:text-sm font-medium text-gray-700">
                   Select All ({selectedClips.length}/{getFilteredAndSortedClips().length})
                 </span>
               </label>
 
               {/* Bulk Actions */}
               {selectedClips.length > 0 && (
-                <>
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={handleBulkDownload}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-2"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs sm:text-sm flex items-center justify-center gap-2"
                   >
-                    <span>⬇️</span> Download Selected
+                    <span>⬇️</span> <span className="hidden sm:inline">Download Selected</span><span className="sm:hidden">Download</span>
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm flex items-center gap-2"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm flex items-center justify-center gap-2"
                   >
-                    <span>🗑️</span> Delete Selected
+                    <span>🗑️</span> <span className="hidden sm:inline">Delete Selected</span><span className="sm:hidden">Delete</span>
                   </button>
-                </>
+                </div>
               )}
 
               {/* Sort By */}
-              <div className="flex items-center gap-2 ml-auto">
-                <label className="text-sm font-medium text-gray-700">Sort:</label>
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Sort:</label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600"
+                  className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-purple-600"
                 >
                   <option value="default">Default Order</option>
-                  <option value="viral_score">Viral Score (High to Low)</option>
-                  <option value="duration">Duration (Long to Short)</option>
+                  <option value="viral_score">Viral Score</option>
+                  <option value="duration">Duration</option>
                 </select>
               </div>
 
               {/* Filter by Emotion */}
               {getUniqueEmotions().length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">Filter:</label>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">Filter:</label>
                   <select
                     value={filterEmotion}
                     onChange={(e) => setFilterEmotion(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600"
+                    className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-purple-600"
                   >
                     <option value="all">All Emotions</option>
                     {getUniqueEmotions().map(emotion => (
@@ -875,9 +893,9 @@ function VideoDetails() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {getFilteredAndSortedClips().map((clip) => (
-              <div key={clip.id} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden relative">
+              <div key={clip.id} className="bg-white rounded-lg sm:rounded-xl shadow hover:shadow-lg transition overflow-hidden relative">
                 <div className="aspect-video bg-gray-900 relative">
                   {/* Selection Checkbox - Positioned in top-left corner */}
                   <div className="absolute top-3 left-3 z-10">
@@ -916,27 +934,27 @@ function VideoDetails() {
                   )}
                 </div>
                 
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   {/* Editable Title */}
                   {editingClipId === clip.id ? (
-                    <div className="mb-3">
+                    <div className="mb-2 sm:mb-3">
                       <input
                         type="text"
                         value={editingClipTitle}
                         onChange={(e) => setEditingClipTitle(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-sm mb-2"
                         autoFocus
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleUpdateClipTitle(clip.id, editingClipTitle)}
-                          className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                          className="px-2 sm:px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
                         >
                           Save
                         </button>
                         <button
                           onClick={() => setEditingClipId(null)}
-                          className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-xs hover:bg-gray-400"
+                          className="px-2 sm:px-3 py-1 bg-gray-300 text-gray-700 rounded text-xs hover:bg-gray-400"
                         >
                           Cancel
                         </button>
@@ -944,13 +962,13 @@ function VideoDetails() {
                     </div>
                   ) : (
                     <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-gray-900 flex-1">{clip.title}</h3>
+                      <h3 className="font-semibold text-gray-900 flex-1 text-sm sm:text-base break-words">{clip.title}</h3>
                       <button
                         onClick={() => {
                           setEditingClipId(clip.id);
                           setEditingClipTitle(clip.title);
                         }}
-                        className="text-gray-400 hover:text-gray-600 ml-2"
+                        className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
                       >
                         ✏️
                       </button>
@@ -958,38 +976,38 @@ function VideoDetails() {
                   )}
                   
                   {clip.emotion && (
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-3 ${getEmotionColor(clip.emotion)}`}>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-semibold mb-2 sm:mb-3 ${getEmotionColor(clip.emotion)}`}>
                       {clip.emotion}
                     </span>
                   )}
                   
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-2 sm:mb-3">
                     <span>{clip.start_time}s - {clip.end_time}s</span>
                   </div>
 
                   {/* Post Status */}
                   {isClipPosted(clip.id) && (
-                    <div className="mb-3">
+                    <div className="mb-2 sm:mb-3">
                       {getPostData(clip.id).status === 'pending' && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-xs">
+                        <div className="flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-xs">
                           <span className="animate-spin">⏳</span>
                           <span className="font-medium">Uploading...</span>
                         </div>
                       )}
                       {getPostData(clip.id).status === 'uploading' && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-xs">
+                        <div className="flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-xs">
                           <span className="animate-spin">⏳</span>
                           <span className="font-medium">Uploading...</span>
                         </div>
                       )}
                       {getPostData(clip.id).status === 'scheduled' && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-xs">
+                        <div className="flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-xs">
                           <span>📅</span>
                           <span className="font-medium">Scheduled</span>
                         </div>
                       )}
                       {getPostData(clip.id).status === 'published' && (
-                        <div className="flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg border border-green-200 text-xs">
+                        <div className="flex items-center justify-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-green-50 text-green-700 rounded-lg border border-green-200 text-xs">
                           <span className="font-medium">✅ Posted</span>
                         </div>
                       )}
@@ -1007,13 +1025,13 @@ function VideoDetails() {
                               href={getPostData(clip.id).platform_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex-1 text-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                              className="flex-1 text-center px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm font-medium"
                             >
-                              🔗 View on YouTube
+                              🔗 <span className="hidden sm:inline">View on YouTube</span><span className="sm:hidden">YouTube</span>
                             </a>
                             <button
                               onClick={() => handleVerifyVideo(clip)}
-                              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm font-medium"
+                              className="px-3 sm:px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-xs sm:text-sm font-medium"
                               title="Check if video still exists on YouTube"
                             >
                               🔍
@@ -1026,20 +1044,31 @@ function VideoDetails() {
                           <div className="space-y-2">
                             <button
                               onClick={() => setShowDeleteDialog({ clip, deleteFromYouTube: true })}
-                              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium"
+                              className="w-full px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm font-medium"
                             >
                               🗑️ Delete from YouTube
                             </button>
                             <button
                               onClick={() => setShowDeleteDialog({ clip, deleteFromYouTube: false })}
-                              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
+                              className="w-full px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs sm:text-sm"
                             >
-                              � Remove Record Only
+                              ✖️ Remove Record Only
                             </button>
                             <p className="text-xs text-gray-500 text-center">
                               Delete from YouTube to permanently remove the video, or just remove the record to post again.
                             </p>
                           </div>
+                        )}
+
+                        {/* View Analytics Button - Only for published clips */}
+                        {getPostData(clip.id).status === 'published' && (
+                          <button
+                            onClick={() => window.location.href = `/dashboard/analytics/clip/${clip.id}`}
+                            className="w-full px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition text-xs sm:text-sm font-medium flex items-center justify-center gap-2"
+                            title="View detailed analytics"
+                          >
+                            📊 <span className="hidden sm:inline">View Analytics</span><span className="sm:hidden">Analytics</span>
+                          </button>
                         )}
                         
                         {(getPostData(clip.id).status === 'scheduled' || getPostData(clip.id).status === 'pending' || getPostData(clip.id).status === 'uploading') && (
@@ -1049,7 +1078,7 @@ function VideoDetails() {
                                 // Navigate to scheduled posts page
                                 window.location.href = '/dashboard/scheduled';
                               }}
-                              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                              className="w-full px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-xs sm:text-sm"
                             >
                               📅 View in Scheduled Posts
                             </button>
@@ -1085,27 +1114,53 @@ function VideoDetails() {
                                   toast.error('Failed to download clip');
                                 });
                             }}
-                            className="flex-1 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm text-center"
+                            className="flex-1 px-2 sm:px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-xs sm:text-sm text-center"
                           >
-                            📥 Download
+                            📥 <span className="hidden sm:inline">Download</span>
                           </a>
+
+                          {/* YouTube Button */}
                           <button
-                            onClick={() => handleOpenPostModal(clip)}
+                            onClick={() => handleOpenPostModal(clip, 'youtube')}
                             disabled={!isYouTubeConnected()}
-                            className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-2 sm:px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!isYouTubeConnected() ? getYouTubeConnectionStatus().message : 'Post to YouTube'}
                           >
-                            ▶️ Post to YouTube
+                            ▶️ <span className="hidden sm:inline">YouTube</span>
+                          </button>
+
+                          {/* Instagram Button */}
+                          <button
+                            onClick={() => handleOpenPostModal(clip, 'instagram')}
+                            disabled={!isInstagramConnected()}
+                            className="flex-1 px-2 sm:px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!isInstagramConnected() ? getInstagramConnectionStatus().message : 'Post to Instagram'}
+                          >
+                            📷 <span className="hidden sm:inline">Instagram</span>
                           </button>
                         </div>
-                        {!isYouTubeConnected() && (
-                          <div className="text-xs text-center">
-                            <span className="text-gray-500">
-                              {getYouTubeConnectionStatus().message === 'Connection expired' 
-                                ? '⚠️ YouTube connection expired - Reconnect in Settings'
-                                : getYouTubeConnectionStatus().message === 'Invalid connection'
-                                ? '⚠️ YouTube connection invalid - Reconnect in Settings'
-                                : 'Connect YouTube in Settings to post clips'}
-                            </span>
+
+                        {/* Connection Status Messages */}
+                        {(!isYouTubeConnected() || !isInstagramConnected()) && (
+                          <div className="text-xs text-center space-y-1">
+                            {!isYouTubeConnected() && (
+                              <div className="text-gray-500">
+                                {getYouTubeConnectionStatus().message === 'Connection expired' 
+                                  ? '⚠️ YouTube connection expired - Reconnect in Settings'
+                                  : getYouTubeConnectionStatus().message === 'Invalid connection'
+                                  ? '⚠️ YouTube connection invalid - Reconnect in Settings'
+                                  : '⚠️ Connect YouTube in Settings to post'}
+                              </div>
+                            )}
+                            {!isInstagramConnected() && (
+                              <div className="text-gray-500">
+                                {getInstagramConnectionStatus().message === 'Connection expired' 
+                                  ? '⚠️ Instagram connection expired - Reconnect in Settings'
+                                  : getInstagramConnectionStatus().message === 'Invalid connection'
+                                  ? '⚠️ Instagram connection invalid - Reconnect in Settings'
+                                  : '⚠️ Connect Instagram in Settings to post'}
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
@@ -1113,7 +1168,7 @@ function VideoDetails() {
 
                     {/* Copy Clip Link Button */}
                     <button
-                      className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                      className="w-full px-2 sm:px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
                       onClick={() => handleCopyClipLink(clip.id)}
                     >
                       🔗 Copy Link
@@ -1182,9 +1237,12 @@ function VideoDetails() {
       )}
 
       {/* Post Modal */}
+      {/* Post Modal */}
       {showPostModal && (
         <PostModal
-          clip={showPostModal}
+          clip={showPostModal.clip}
+          platform={showPostModal.platform}
+          connectedPlatforms={platformConnections.filter(c => !c.isExpired).map(c => c.platform)}
           onClose={() => setShowPostModal(null)}
           onSuccess={handlePostSuccess}
         />
